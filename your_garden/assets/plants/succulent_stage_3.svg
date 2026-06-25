@@ -1,0 +1,12 @@
+<svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 60 220 L 65 280 L 135 280 L 140 220 Z" fill="#A1887F"/>
+  <rect x="58" y="218" width="84" height="6" fill="#8D6E63"/>
+  <ellipse cx="100" cy="223" rx="40" ry="4" fill="#5D4037"/>
+  <line x1="100" y1="220" x2="100" y2="190" stroke="#558B2F" stroke-width="3"/>
+  <!-- 5 plump leaves -->
+  <ellipse cx="88" cy="200" rx="9" ry="5" fill="#7CB342" transform="rotate(-40 88 200)"/>
+  <ellipse cx="112" cy="200" rx="9" ry="5" fill="#7CB342" transform="rotate(40 112 200)"/>
+  <ellipse cx="85" cy="190" rx="9" ry="5" fill="#9CCC65" transform="rotate(-50 85 190)"/>
+  <ellipse cx="115" cy="190" rx="9" ry="5" fill="#9CCC65" transform="rotate(50 115 190)"/>
+  <ellipse cx="100" cy="186" rx="6" ry="4" fill="#7CB342"/>
+</svg>

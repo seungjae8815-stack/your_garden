@@ -1,0 +1,37 @@
+# ===== 비밀 (절대 커밋 금지) =====
+**/.env
+**/key.properties
+**/*.jks
+**/*.keystore
+**/upload-keystore.jks
+
+# ===== Flutter / Dart =====
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+
+# ===== Android =====
+**/.gradle/
+**/local.properties
+**/captures/
+**/.cxx/
+
+# ===== iOS =====
+**/Pods/
+**/.symlinks/
+**/Flutter/Flutter.framework/
+**/Flutter/Flutter.podspec
+
+# ===== IDE / OS =====
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ===== 임시 =====
+*.log

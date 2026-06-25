@@ -1,0 +1,17 @@
+<svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 60 220 L 65 280 L 135 280 L 140 220 Z" fill="#A1887F"/>
+  <rect x="58" y="218" width="84" height="6" fill="#8D6E63"/>
+  <ellipse cx="100" cy="223" rx="40" ry="4" fill="#5D4037"/>
+  <!-- Dense leaves -->
+  <ellipse cx="85" cy="205" rx="11" ry="6" fill="#7CB342" transform="rotate(-35 85 205)"/>
+  <ellipse cx="115" cy="205" rx="11" ry="6" fill="#7CB342" transform="rotate(35 115 205)"/>
+  <ellipse cx="80" cy="195" rx="11" ry="6" fill="#9CCC65" transform="rotate(-50 80 195)"/>
+  <ellipse cx="120" cy="195" rx="11" ry="6" fill="#9CCC65" transform="rotate(50 120 195)"/>
+  <ellipse cx="88" cy="183" rx="10" ry="6" fill="#7CB342" transform="rotate(-65 88 183)"/>
+  <ellipse cx="112" cy="183" rx="10" ry="6" fill="#7CB342" transform="rotate(65 112 183)"/>
+  <ellipse cx="100" cy="180" rx="8" ry="5" fill="#9CCC65"/>
+  <ellipse cx="100" cy="190" rx="8" ry="5" fill="#7CB342"/>
+  <!-- Flower bud -->
+  <line x1="100" y1="178" x2="100" y2="160" stroke="#558B2F" stroke-width="2"/>
+  <circle cx="100" cy="158" r="3" fill="#9CCC65"/>
+</svg>

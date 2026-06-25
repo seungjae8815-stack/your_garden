@@ -1,0 +1,8 @@
+<svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pot -->
+  <path d="M 60 220 L 65 280 L 135 280 L 140 220 Z" fill="#A1887F"/>
+  <rect x="58" y="218" width="84" height="6" fill="#8D6E63"/>
+  <ellipse cx="100" cy="223" rx="40" ry="4" fill="#5D4037"/>
+  <!-- Seed -->
+  <ellipse cx="100" cy="220" rx="3" ry="4" fill="#3E2723"/>
+</svg>
