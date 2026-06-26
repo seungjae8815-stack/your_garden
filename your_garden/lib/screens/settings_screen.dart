@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -36,11 +38,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _bioOn = false;
   bool _bioAvailable = false;
 
+  late final AuthService _auth = AuthService(Supabase.instance.client);
+  bool _googleLinked = false;
+  bool _pendingRecover = false;
+  StreamSubscription<AuthState>? _authSub;
+
   @override
   void initState() {
     super.initState();
     _loadNotif();
     _loadLock();
+    _loadBackup();
+  }
+
+  Future<void> _loadBackup() async {
+    if (!mounted) return;
+    setState(() => _googleLinked = _auth.isGoogleLinked);
+    // Google 연결/로그인 완료(브라우저 복귀)를 감지.
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((s) {
+      if (!mounted) return;
+      setState(() => _googleLinked = _auth.isGoogleLinked);
+      if (s.event == AuthChangeEvent.signedIn && _pendingRecover) {
+        _pendingRecover = false;
+        _showRestartDialog();
+      } else if (s.event == AuthChangeEvent.userUpdated && _googleLinked) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Google 계정으로 백업됐어요 🌿')));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _linkGoogle() async {
+    try {
+      await _auth.linkGoogle();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google 연결을 시작하지 못했어요: $e')));
+    }
+  }
+
+  Future<void> _recoverGoogle() async {
+    _pendingRecover = true;
+    try {
+      await _auth.signInGoogle();
+    } catch (e) {
+      _pendingRecover = false;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google 복구를 시작하지 못했어요: $e')));
+    }
+  }
+
+  void _showRestartDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cream,
+        title: const Text('복구됐어요 🌿'),
+        content: const Text('앱을 완전히 종료한 뒤 다시 열면\n되찾은 정원이 나타나요.'),
+        actions: [
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadLock() async {
@@ -370,6 +442,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('주소를 복사했어요.')));
               },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _card([
+            // Google 계정 백업 (권장)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.account_circle_outlined,
+                  color: _googleLinked ? AppColors.green : AppColors.sub),
+              title: Text(_googleLinked ? 'Google 계정으로 백업됨 ✓' : 'Google로 백업',
+                  style: const TextStyle(fontSize: 15, color: AppColors.ink)),
+              subtitle: Text(
+                  _googleLinked
+                      ? '기기를 바꿔도 Google로 정원을 지켜요'
+                      : 'Google 계정에 연결해 정원을 안전하게',
+                  style: const TextStyle(fontSize: 12, color: AppColors.faint)),
+              onTap: (_busy || _googleLinked) ? null : _linkGoogle,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.restore, color: AppColors.sub),
+              title: const Text('Google로 복구',
+                  style: TextStyle(fontSize: 15, color: AppColors.ink)),
+              subtitle: const Text('다른 기기에서 Google 로그인으로 되찾기',
+                  style: TextStyle(fontSize: 12, color: AppColors.faint)),
+              onTap: _busy ? null : _recoverGoogle,
             ),
           ]),
           const SizedBox(height: 14),

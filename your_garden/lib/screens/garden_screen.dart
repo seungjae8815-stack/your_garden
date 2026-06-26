@@ -6,11 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
+import '../services/share_util.dart';
 import '../widgets/garden_critters.dart';
 import '../widgets/plant_painter.dart';
 import 'input_screen.dart';
 import 'plant_detail_screen.dart';
 import 'reflection_screen.dart';
+import 'share_preview_screen.dart';
 
 /// (구버전) 고정 자리 — pos_x/pos_y 없는 옛 데이터의 위치 폴백용.
 class _Spot {
@@ -66,6 +68,7 @@ class _GardenScreenState extends State<GardenScreen> {
   String? _error;
 
   final GlobalKey _canvasKey = GlobalKey(); // 정원 캔버스 — 드롭 좌표 환산용
+  final GlobalKey _shareKey = GlobalKey(); // 공유 카드 캡처용
 
   static const _skinAsset = 'assets/gardens/cottage_spring.png';
 
@@ -369,43 +372,52 @@ class _GardenScreenState extends State<GardenScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(_skinAsset, fit: BoxFit.cover),
-          // 낮: 흐르는 구름
-          if (!_night)
-            const Positioned.fill(child: IgnorePointer(child: _CloudLayer())),
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 130,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x66FFFFFF), Color(0x00FFFFFF)],
+          // 공유 카드로 캡처할 정원 시각 레이어 (UI 버튼은 제외).
+          RepaintBoundary(
+            key: _shareKey,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(_skinAsset, fit: BoxFit.cover),
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 130,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0x66FFFFFF), Color(0x00FFFFFF)],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                SafeArea(
+                  child: _loading
+                      ? const Center(
+                          child:
+                              CircularProgressIndicator(color: AppColors.green))
+                      : _error != null
+                          ? _errorView()
+                          : _bodyScene(),
+                ),
+                // 구름은 식물보다 앞 — 언덕 위 작은 식물이 구름을 뚫지 않게.
+                if (!_night)
+                  const Positioned.fill(
+                      child: IgnorePointer(child: _CloudLayer())),
+                if (_night) const IgnorePointer(child: _NightOverlay()),
+                if (!_loading && _error == null)
+                  Positioned.fill(
+                    child: SafeArea(
+                      child: GardenCritters(
+                          key: ValueKey(_night), night: _night),
+                    ),
+                  ),
+              ],
             ),
           ),
-          SafeArea(
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.green))
-                : _error != null
-                    ? _errorView()
-                    : _bodyScene(),
-          ),
-          // 밤 오버레이 — 식물까지 어둡게. 달·별은 이 위(밝게), 버튼은 더 위.
-          if (_night) const IgnorePointer(child: _NightOverlay()),
-          // 날아다니는 곤충: 낮=나비·벌, 밤=반딧불. 밤엔 오버레이 위라 빛이 보임.
-          if (!_loading && _error == null)
-            Positioned.fill(
-              child: SafeArea(
-                child: GardenCritters(
-                    key: ValueKey(_night), night: _night),
-              ),
-            ),
           // 매일 체크인 CTA — 하단 중앙. 심기/드래그 중엔 숨김.
           if (!_loading &&
               _error == null &&
@@ -466,12 +478,42 @@ class _GardenScreenState extends State<GardenScreen> {
                 ],
               ),
             ),
+            _shareButton(),
+            const SizedBox(width: 8),
             _dayNightButton(),
             const SizedBox(width: 8),
             _inventoryChip(),
           ],
         ),
       );
+
+  Widget _shareButton() => GestureDetector(
+        onTap: _shareGarden,
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.9),
+            shape: BoxShape.circle,
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x22000000), blurRadius: 5, offset: Offset(0, 2)),
+            ],
+          ),
+          child: const Icon(Icons.ios_share, size: 18, color: AppColors.sub),
+        ),
+      );
+
+  Future<void> _shareGarden() async {
+    final bytes = await captureBoundary(_shareKey, pixelRatio: 2.5);
+    if (bytes == null || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SharePreviewScreen(
+            imageBytes: bytes, nickname: widget.profile.nickname),
+      ),
+    );
+  }
 
   Widget _bodyScene() =>
       LayoutBuilder(builder: (context, c) => _garden3d(c));

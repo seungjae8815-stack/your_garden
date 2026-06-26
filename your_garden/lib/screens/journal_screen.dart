@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
 import '../widgets/mood_icon.dart';
+import 'year_pixels_screen.dart';
 
 /// 기록 탭 — 마음 달력. 날짜마다 그날의 마음 날씨를 표시하고, 누르면 그날의 기록을 본다.
 class JournalScreen extends StatefulWidget {
@@ -79,6 +80,17 @@ class _JournalScreenState extends State<JournalScreen> {
       appBar: AppBar(
         title: const Text('마음 달력', style: TextStyle(color: AppColors.ink)),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.grid_view_rounded, color: AppColors.sub),
+            tooltip: '올해의 마음',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => YearPixelsScreen(profile: widget.profile)),
+            ),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green))
@@ -178,12 +190,12 @@ class _JournalScreenState extends State<JournalScreen> {
                           selected ? FontWeight.w700 : FontWeight.w400)),
               const SizedBox(height: 2),
               SizedBox(
-                height: 22,
+                height: 30,
                 child: mood != null
-                    ? MoodIcon(value: mood, size: 20)
+                    ? MoodIcon(value: mood, size: 30)
                     : has
                         ? const Icon(Icons.eco,
-                            size: 13, color: AppColors.green)
+                            size: 15, color: AppColors.green)
                         : null,
               ),
             ],

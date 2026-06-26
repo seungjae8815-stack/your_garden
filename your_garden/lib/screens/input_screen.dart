@@ -327,7 +327,7 @@ class _InputScreenState extends State<InputScreen>
         ),
         child: Column(
           children: [
-            MoodIcon(value: m.value, size: 26),
+            MoodIcon(value: m.value, size: 38),
             const SizedBox(height: 4),
             Text(m.label,
                 textAlign: TextAlign.center,
