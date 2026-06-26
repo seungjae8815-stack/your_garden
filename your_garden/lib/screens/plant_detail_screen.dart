@@ -58,18 +58,50 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   child: SizedBox(
                     width: 260,
                     height: 300,
-                    child: CustomPaint(
-                      painter: PlantPainter(
-                        species: p.species,
-                        stage: p.stage,
-                        inPot: !isGroundPlant(p.species),
-                      ),
-                    ),
+                    child: PlantSprite.hasAsset(p.species)
+                        ? (isGroundPlant(p.species)
+                            ? TreeOnSoil(
+                                species: p.species,
+                                stage: p.stage,
+                                soilW: 200,
+                                treeW: 250,
+                                treeH: 290 *
+                                    PlantSprite.heightFactor(
+                                        p.species, p.stage),
+                              )
+                            : Stack(
+                                alignment: Alignment.bottomCenter,
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Image.asset('assets/gardens/pot.png',
+                                      width: 150),
+                                  Positioned(
+                                    bottom: 138,
+                                    child: SizedBox(
+                                      width: 240,
+                                      height: 200 *
+                                          PlantSprite.heightFactor(
+                                              p.species, p.stage),
+                                      child: PlantSprite(
+                                          species: p.species,
+                                          stage: p.stage,
+                                          inPot: false),
+                                    ),
+                                  ),
+                                ],
+                              ))
+                        : CustomPaint(
+                            painter: PlantPainter(
+                              species: p.species,
+                              stage: p.stage,
+                              inPot: !isGroundPlant(p.species),
+                            ),
+                          ),
                   ),
                 ),
               ),
               Text(
-                p.isComplete ? '활짝 다 자랐어요 🌸' : 'Stage ${p.stage} · ${_names[p.stage]}',
+                p.isBloomed ? '활짝 다 자랐어요 🌸' : 'Stage ${p.stage} · ${_names[p.stage]}',
                 style: const TextStyle(fontSize: 16, color: AppColors.sub),
               ),
               const SizedBox(height: 10),
@@ -93,7 +125,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed:
-                        p.isComplete ? () => Navigator.pop(context) : _write,
+                        p.isBloomed ? () => Navigator.pop(context) : _write,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.green,
                       foregroundColor: Colors.white,
@@ -104,14 +136,14 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       shadowColor: const Color(0x557CB342),
                     ),
                     child: Text(
-                      p.isComplete ? '정원으로 돌아가기' : '마음 한 줄 묻기',
+                      p.isBloomed ? '정원으로 돌아가기' : '마음 한 줄 묻기',
                       style: const TextStyle(
                           fontSize: 16.5, letterSpacing: 0.5),
                     ),
                   ),
                 ),
               ),
-              if (GardenService.testFastGrowth && !p.isComplete) ...[
+              if (GardenService.testFastGrowth && !p.isBloomed) ...[
                 const SizedBox(height: 10),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
+import '../widgets/plant_painter.dart';
 
 const _privacyUrl = 'https://seungjae8815-stack.github.io/yourgarden-policy/';
 
@@ -35,13 +36,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
       markGardenDirty();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              '현재 식물을 ${s == 'tree' ? '나무' : '화분류(꽃)'}로 바꿨어요. 정원 탭에서 확인!')));
+          content:
+              Text('현재 식물을 ${speciesLabel(s)}(으)로 바꿨어요. 정원 탭에서 확인!')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('바꾸지 못했어요.')));
     }
+  }
+
+  // 테스트: 현재 키우는 식물을 고른 종으로 바꾸기 (꽃/나무 공용).
+  Future<void> _pickSpecies(List<String> list, String title) async {
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.cream,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink)),
+              const SizedBox(height: 4),
+              const Text('현재 키우는 식물을 고른 종으로 바꿔요.',
+                  style: TextStyle(fontSize: 13, color: AppColors.faint)),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 132,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: list.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (_, i) {
+                    final sp = list[i];
+                    return GestureDetector(
+                      onTap: () => Navigator.pop(ctx, sp),
+                      child: Container(
+                        width: 96,
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        padding: const EdgeInsets.all(6),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: PlantSprite(
+                                  species: sp, stage: 5, inPot: false),
+                            ),
+                            Text(speciesLabel(sp),
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppColors.sub)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (chosen != null) await _setSpecies(chosen);
   }
 
   Future<void> _togglePublic(bool v) async {
@@ -113,7 +179,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await _garden.deleteAllData(widget.profile.uid);
       await AuthService(Supabase.instance.client).resetLocal();
-      GardenService.testFastGrowth = false;
+      // 초기화 후에도 테스트 모드 토글 상태는 그대로 유지 (재토글 불필요).
+      GardenService.testFastGrowth = _testFast;
+      await AuthService(Supabase.instance.client).setTestFast(_testFast);
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -193,16 +261,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.local_florist_outlined, color: AppColors.sub),
-              title: const Text('테스트: 현재 식물을 화분류로',
+              title: const Text('테스트: 꽃 종류 고르기',
                   style: TextStyle(fontSize: 15, color: AppColors.ink)),
-              onTap: () => _setSpecies('flower'),
+              subtitle: const Text('코스모스·튤립·해바라기·장미·수선화',
+                  style: TextStyle(fontSize: 12, color: AppColors.faint)),
+              onTap: () => _pickSpecies(kFlowerSpecies, '테스트: 꽃 종류 고르기'),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.park_outlined, color: AppColors.sub),
-              title: const Text('테스트: 현재 식물을 나무로',
+              title: const Text('테스트: 나무 종류 고르기',
                   style: TextStyle(fontSize: 15, color: AppColors.ink)),
-              onTap: () => _setSpecies('tree'),
+              subtitle: const Text('벚나무·단풍나무·소나무·은행나무·감나무',
+                  style: TextStyle(fontSize: 12, color: AppColors.faint)),
+              onTap: () => _pickSpecies(kTreeSpecies, '테스트: 나무 종류 고르기'),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,

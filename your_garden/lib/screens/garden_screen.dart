@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
+import '../widgets/garden_critters.dart';
 import '../widgets/plant_painter.dart';
 import 'plant_detail_screen.dart';
 
@@ -42,6 +43,7 @@ class _GardenScreenState extends State<GardenScreen> {
   List<Plant> _completed = const [];
   bool _loading = true;
   bool _night = false; // 테스트용 밤낮 토글
+  bool _precached = false;
   String? _error;
 
   static const _skinAsset = 'assets/gardens/cottage_spring.png';
@@ -64,20 +66,36 @@ class _GardenScreenState extends State<GardenScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_precached) return;
+    _precached = true;
+    // 꽃·나무 그림을 미리 디코딩해 둬서 성장/전환 시 깜빡임 없이 즉시 표시.
+    for (final sp in [...kFlowerSpecies, ...kTreeSpecies]) {
+      for (var s = 1; s <= 5; s++) {
+        precacheImage(AssetImage('assets/gardens/${sp}_$s.png'), context);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     gardenDirty.removeListener(_onDirty);
     super.dispose();
   }
 
   void _onDirty() {
-    if (mounted) _load();
+    if (mounted) _load(silent: true);
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  // silent=true 면 전체 로딩 스피너 없이 기존 화면을 유지한 채 데이터만 갱신.
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final plant = await _garden.ensureActivePlant(widget.profile.uid);
       final completed = await _garden.completedPlants(widget.profile.uid);
@@ -99,11 +117,65 @@ class _GardenScreenState extends State<GardenScreen> {
   Future<void> _openDetail() async {
     final plant = _plant;
     if (plant == null) return;
+    // 다 자란 식물은 거두기 확인 알림, 자라는 중이면 상세 화면.
+    if (plant.isBloomed) {
+      await _harvestConfirm(plant);
+      return;
+    }
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => PlantDetailScreen(plant: plant)),
     );
-    if (mounted) _load();
+    if (mounted) _load(silent: true);
+  }
+
+  // 만개한 식물 탭 → 모종함에 넣을지 확인 알림. 넣지 않으면 받침대에 그대로 둠.
+  Future<void> _harvestConfirm(Plant plant) async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cream,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: const Text('활짝 다 자랐어요 🌸',
+            style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink)),
+        content: const Text(
+            '모종함에 넣으면 정원 꾸미기에 쓸 수 있어요.\n지금 모종함에 넣을까요?',
+            style: TextStyle(fontSize: 14, color: AppColors.sub, height: 1.5)),
+        actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'detail'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.sub),
+            child: const Text('자세히 보기'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: AppColors.faint),
+            child: const Text('그대로 둘게요'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'harvest'),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.green),
+            child: const Text('모종함에 넣기'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'harvest') {
+      await _garden.harvest(plant.id);
+      markGardenDirty(); // 정원·도감 둘 다 즉시 갱신
+    } else if (action == 'detail') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => PlantDetailScreen(plant: plant)),
+      );
+      if (mounted) _load(silent: true);
+    }
   }
 
   // 빈 자리 탭 → 모종함에서 같은 종류 골라 심기
@@ -119,7 +191,7 @@ class _GardenScreenState extends State<GardenScreen> {
     final chosen = await _pickFromInventory(candidates, isTree ? '심을 나무 고르기' : '심을 화분 고르기');
     if (chosen != null) {
       await _garden.place(chosen.id, spotIndex);
-      if (mounted) _load();
+      if (mounted) _load(silent: true);
     }
   }
 
@@ -163,12 +235,10 @@ class _GardenScreenState extends State<GardenScreen> {
                         child: Column(
                           children: [
                             Expanded(
-                              child: CustomPaint(
-                                  size: Size.infinite,
-                                  painter: PlantPainter(
-                                      species: p.species,
-                                      stage: 5,
-                                      inPot: !isGroundPlant(p.species))),
+                              child: PlantSprite(
+                                  species: p.species,
+                                  stage: 5,
+                                  inPot: !isGroundPlant(p.species)),
                             ),
                             Text(speciesLabel(p.species),
                                 style: const TextStyle(
@@ -216,7 +286,7 @@ class _GardenScreenState extends State<GardenScreen> {
     );
     if (action == 'unplace') {
       await _garden.unplace(p.id);
-      if (mounted) _load();
+      if (mounted) _load(silent: true);
     }
   }
 
@@ -270,12 +340,10 @@ class _GardenScreenState extends State<GardenScreen> {
                         child: Column(
                           children: [
                             Expanded(
-                              child: CustomPaint(
-                                  size: Size.infinite,
-                                  painter: PlantPainter(
-                                      species: p.species,
-                                      stage: 5,
-                                      inPot: !isGroundPlant(p.species))),
+                              child: PlantSprite(
+                                  species: p.species,
+                                  stage: 5,
+                                  inPot: !isGroundPlant(p.species)),
                             ),
                             Text(speciesLabel(p.species),
                                 style: const TextStyle(
@@ -328,6 +396,14 @@ class _GardenScreenState extends State<GardenScreen> {
           ),
           // 밤 오버레이 — 식물까지 어둡게. 달·별은 이 위(밝게), 버튼은 더 위.
           if (_night) const IgnorePointer(child: _NightOverlay()),
+          // 날아다니는 곤충: 낮=나비·벌, 밤=반딧불. 밤엔 오버레이 위라 빛이 보임.
+          if (!_loading && _error == null)
+            Positioned.fill(
+              child: SafeArea(
+                child: GardenCritters(
+                    key: ValueKey(_night), night: _night),
+              ),
+            ),
           // 상단 바 — 맨 위 (버튼이 달보다 앞)
           SafeArea(
             child: Align(alignment: Alignment.topCenter, child: _topBar()),
@@ -441,8 +517,8 @@ class _GardenScreenState extends State<GardenScreen> {
       final occupant = placed[i];
       if (occupant != null) {
         final isTree = isGroundPlant(occupant.species);
-        final iw = isTree ? 96.0 : 70.0;
-        final ih = isTree ? 120.0 : 92.0;
+        final iw = isTree ? 104.0 : 70.0;
+        final ih = isTree ? 140.0 : 92.0;
         children.add(Positioned(
           left: spot.dx * w - iw / 2,
           top: spot.dy * h - ih,
@@ -481,43 +557,21 @@ class _GardenScreenState extends State<GardenScreen> {
       child: GestureDetector(
         onTap: _openDetail,
         behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _badge(plant),
-            const SizedBox(height: 8),
-            isGroundPlant(plant.species)
-                ? _treeOnSoil(plant)
-                : _potOnStand(plant),
-          ],
-        ),
+        child: isGroundPlant(plant.species)
+            ? _treeOnSoil(plant)
+            : _potOnStand(plant),
       ),
     ));
 
     return Stack(clipBehavior: Clip.none, children: children);
   }
 
-  Widget _badge(Plant p) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(color: Color(0x22000000), blurRadius: 6, offset: Offset(0, 2)),
-          ],
-        ),
-        child: Text(
-          p.isComplete ? '다 자랐어요 · 톡!' : '톡 눌러 마음 묻기 · ${p.stage}/5',
-          style: const TextStyle(
-              fontSize: 13, color: AppColors.ink, fontWeight: FontWeight.w600),
-        ),
-      );
-
   Widget _potOnStand(Plant p) => SizedBox(
         width: 130,
-        height: 240,
+        height: 320,
         child: Stack(
           alignment: Alignment.bottomCenter,
+          clipBehavior: Clip.none,
           children: [
             // 받침대
             Image.asset('assets/gardens/stand.png', width: 86),
@@ -526,41 +580,30 @@ class _GardenScreenState extends State<GardenScreen> {
               bottom: 92,
               child: Image.asset('assets/gardens/pot.png', width: 72),
             ),
-            // 식물 잎/꽃 (화분 흙에서 올라옴, 화분 없이)
+            // 식물 잎/꽃 (화분 흙에서 올라옴, 화분 없이). 단계에 따라 커짐.
             Positioned(
-              bottom: 134,
+              bottom: 158,
               child: SizedBox(
-                width: 84,
-                height: 112,
-                child: CustomPaint(
-                    painter: PlantPainter(
-                        species: p.species, stage: p.stage, inPot: false)),
+                width: 130,
+                height: 150 * PlantSprite.heightFactor(p.species, p.stage),
+                child: PlantSprite(
+                    species: p.species, stage: p.stage, inPot: false),
               ),
             ),
           ],
         ),
       );
 
-  Widget _treeOnSoil(Plant p) => SizedBox(
-        width: 190,
-        height: 224,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            Image.asset('assets/gardens/soil.png', width: 150),
-            Positioned(
-              bottom: 14,
-              child: SizedBox(
-                width: 170,
-                height: 196,
-                child: CustomPaint(
-                    painter: PlantPainter(
-                        species: p.species, stage: p.stage, inPot: false)),
-              ),
-            ),
-          ],
-        ),
-      );
+  Widget _treeOnSoil(Plant p) {
+    final hf = PlantSprite.heightFactor(p.species, p.stage);
+    return TreeOnSoil(
+      species: p.species,
+      stage: p.stage,
+      soilW: 150 + 30 * hf, // 큰 나무일수록 흙더미도 넓게
+      treeW: 200,
+      treeH: 260 * hf,
+    );
+  }
 }
 
 /// 밤 오버레이 — 남색 틴트 + 달(이미지) + 반짝이는 별(코드).
@@ -718,25 +761,15 @@ class _PlacedPlant extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isTree) {
-      return Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Image.asset('assets/gardens/soil.png', width: 72),
-          Positioned(
-            bottom: 4,
-            child: SizedBox(
-              width: 88,
-              height: 110,
-              child: CustomPaint(
-                  painter: PlantPainter(
-                      species: plant.species, stage: 5, inPot: false)),
-            ),
-          ),
-        ],
+      return TreeOnSoil(
+        species: plant.species,
+        stage: 5,
+        soilW: 86,
+        treeW: 100,
+        treeH: 130,
       );
     }
-    return CustomPaint(
-        painter: PlantPainter(species: plant.species, stage: 5));
+    return PlantSprite(species: plant.species, stage: 5, inPot: false);
   }
 }
 

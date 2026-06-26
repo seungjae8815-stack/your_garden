@@ -31,6 +31,9 @@ class Plant {
   final DateTime? lastGrowthAt;
   final DateTime? startedAt;
 
+  /// 다 자람(만개). 거두기 전까지 받침대에 남아 있음. (isComplete=거둬서 모종함行)
+  bool get isBloomed => stage >= 5;
+
   factory Plant.fromMap(Map<String, dynamic> m) => Plant(
         id: m['id'] as String,
         stage: m['current_stage'] as int,
@@ -89,7 +92,8 @@ class GardenService {
   static bool testFastGrowth = false;
 
   Future<Plant> _insertPlant(String ownerId) async {
-    final species = kPlantSpecies[_rng.nextInt(kPlantSpecies.length)];
+    const pool = [...kFlowerSpecies, ...kTreeSpecies];
+    final species = pool[_rng.nextInt(pool.length)];
     final row = await _client
         .from('plants')
         .insert({
@@ -134,13 +138,13 @@ class GardenService {
       return EntryResult(plant, grew: false);
     }
 
+    // 만개(stage 5)해도 자동 완성하지 않음 — 사용자가 직접 '거두기' 전까지 남아 있음.
     final newStage = plant.stage + 1;
     final updated = await _client
         .from('plants')
         .update({
           'current_stage': newStage,
           'last_growth_at': now.toUtc().toIso8601String(),
-          'is_completed': newStage >= 5,
         })
         .eq('id', plant.id)
         .select()
@@ -157,12 +161,18 @@ class GardenService {
         .update({
           'current_stage': newStage,
           'last_growth_at': DateTime.now().toUtc().toIso8601String(),
-          'is_completed': newStage >= 5,
         })
         .eq('id', plant.id)
         .select()
         .single();
     return Plant.fromMap(updated);
+  }
+
+  /// 다 자란 식물을 모종함으로 거둠 → 완성 처리. 다음 _load에서 새 식물이 심김.
+  Future<void> harvest(String plantId) async {
+    await _client
+        .from('plants')
+        .update({'is_completed': true}).eq('id', plantId);
   }
 
   /// 완성(만개)한 식물들 — 도감/정원 장식용.

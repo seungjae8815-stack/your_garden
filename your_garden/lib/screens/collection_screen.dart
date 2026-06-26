@@ -24,6 +24,17 @@ class _CollectionScreenState extends State<CollectionScreen> {
   void initState() {
     super.initState();
     _load();
+    gardenDirty.addListener(_onDirty); // 정원에서 거두면 즉시 도감 갱신
+  }
+
+  @override
+  void dispose() {
+    gardenDirty.removeListener(_onDirty);
+    super.dispose();
+  }
+
+  void _onDirty() {
+    if (mounted) _load();
   }
 
   Future<void> _load() async {
@@ -106,12 +117,18 @@ class _CollectionScreenState extends State<CollectionScreen> {
                 child: Column(
                   children: [
                     Expanded(
-                      child: CustomPaint(
-                          painter: PlantPainter(
-                              species: p.species,
-                              stage: 5,
-                              inPot: !isGroundPlant(p.species)),
-                          size: Size.infinite),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: PlantSprite.hasAsset(p.species)
+                            ? PlantSprite(
+                                species: p.species, stage: 5, inPot: false)
+                            : CustomPaint(
+                                painter: PlantPainter(
+                                    species: p.species,
+                                    stage: 5,
+                                    inPot: !isGroundPlant(p.species)),
+                                size: Size.infinite),
+                      ),
                     ),
                     Text(speciesLabel(p.species),
                         style: const TextStyle(

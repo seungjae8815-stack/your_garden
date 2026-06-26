@@ -2,17 +2,155 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-/// 식물 종류. 화분류(flower/succulent/herb)는 선반 위, tree는 땅에 심음.
+/// 단계별 그림(에셋)을 가진 꽃 종류. 새로 심는 식물은 이 중에서 무작위로 정해진다.
+const kFlowerSpecies = ['cosmos', 'tulip', 'sunflower', 'rose', 'daffodil'];
+
+/// 단계별 그림(에셋)을 가진 나무 종류. 땅에 심는다.
+const kTreeSpecies = ['cherry', 'maple', 'pine', 'ginkgo', 'persimmon'];
+
+/// 식물 종류(레거시 포함). 화분류는 선반 위, 나무는 땅에 심음.
 const kPlantSpecies = ['flower', 'succulent', 'herb', 'tree'];
-bool isGroundPlant(String species) => species == 'tree';
+
+/// 나무(땅에 심는 종)인지. 레거시 'tree' 포함.
+bool isGroundPlant(String species) =>
+    species == 'tree' || kTreeSpecies.contains(species);
+
+/// 레거시 'flower'(테스트용으로 만들었던 코스모스)는 cosmos 에셋으로 표시.
+String _assetPrefix(String s) => s == 'flower' ? 'cosmos' : s;
+
+/// soil.png 높이/너비 비율 (742/2529).
+const double kSoilRatio = 0.2934;
+
+/// mound_front.png(볼록 흙더미) 높이/너비 비율.
+const double kMoundRatio = 0.39;
 
 String speciesLabel(String s) => switch (s) {
-      'flower' => '꽃',
+      'cosmos' || 'flower' => '코스모스',
+      'tulip' => '튤립',
+      'sunflower' => '해바라기',
+      'rose' => '장미',
+      'daffodil' => '수선화',
+      'cherry' => '벚나무',
+      'maple' => '단풍나무',
+      'pine' => '소나무',
+      'ginkgo' => '은행나무',
+      'persimmon' => '감나무',
       'succulent' => '다육이',
       'herb' => '허브',
       'tree' => '나무',
       _ => '식물',
     };
+
+/// 일러스트 에셋이 있는 종은 그림으로, 없으면 PlantPainter로 그린다.
+/// 꽃 5종 + 나무 5종이 단계별 그림(<종>_1..5.png)을 가짐.
+class PlantSprite extends StatelessWidget {
+  const PlantSprite({
+    super.key,
+    required this.species,
+    required this.stage,
+    this.inPot = false,
+  });
+  final String species;
+  final int stage;
+  final bool inPot;
+
+  static bool hasAsset(String species) =>
+      species == 'flower' ||
+      kFlowerSpecies.contains(species) ||
+      kTreeSpecies.contains(species);
+
+  /// 단계별 표시 높이 비율(원본 그림의 실제 높이 비례). 새싹은 작게, 만개는 크게.
+  static double heightFactor(String species, int stage) {
+    if (!hasAsset(species)) return 1.0;
+    final s = stage.clamp(1, 5);
+    if (kTreeSpecies.contains(species)) {
+      // 나무는 묘목→큰나무로 더 완만하게 커짐.
+      return switch (s) {
+        1 => 0.32,
+        2 => 0.55,
+        3 => 0.74,
+        4 => 0.89,
+        _ => 1.0,
+      };
+    }
+    return switch (s) {
+      1 => 0.26,
+      2 => 0.58,
+      3 => 0.82,
+      4 => 0.92,
+      _ => 1.0,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (hasAsset(species)) {
+      final s = stage.clamp(1, 5);
+      return Image.asset(
+        'assets/gardens/${_assetPrefix(species)}_$s.png',
+        fit: BoxFit.contain,
+        alignment: Alignment.bottomCenter,
+        filterQuality: FilterQuality.medium,
+      );
+    }
+    return CustomPaint(
+      size: Size.infinite,
+      painter: PlantPainter(species: species, stage: stage, inPot: inPot),
+    );
+  }
+}
+
+/// 나무를 흙더미에 심어 보여주는 위젯.
+/// 흙더미를 (뒤 받침) + 나무 + (앞 둔덕: 아래 일부) 순서로 겹쳐 그려, 줄기 밑동을
+/// 흙더미 앞면 뒤로 가린다. 덕분에 나무 그림의 밑동 모양이 제각각이어도(혹은 새 나무가
+/// 추가돼도) 종별 보정 없이 항상 "땅에 심긴" 모습이 된다.
+class TreeOnSoil extends StatelessWidget {
+  const TreeOnSoil({
+    super.key,
+    required this.species,
+    required this.stage,
+    required this.soilW,
+    required this.treeW,
+    required this.treeH,
+    this.frontFactor = 0.60, // 앞 작은 둔덕 너비(soilW 대비). 밑동만 살짝 가림
+    this.baseFactor = 0.10, // 줄기 밑동을 흙더미 높이의 이만큼 위에 둠
+  });
+  final String species;
+  final int stage;
+  final double soilW;
+  final double treeW;
+  final double treeH;
+  final double frontFactor;
+  final double baseFactor;
+
+  @override
+  Widget build(BuildContext context) {
+    final soilH = soilW * kSoilRatio;
+    final baseSink = soilH * baseFactor;
+    final sprite = PlantSprite.hasAsset(species)
+        ? PlantSprite(species: species, stage: stage, inPot: false)
+        : CustomPaint(
+            painter: PlantPainter(species: species, stage: stage, inPot: false));
+    return SizedBox(
+      width: (treeW > soilW ? treeW : soilW) + 4,
+      height: treeH + baseSink + 6,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        clipBehavior: Clip.none,
+        children: [
+          Image.asset('assets/gardens/soil.png', width: soilW), // 뒤: 원본 흙더미
+          Positioned(
+            bottom: baseSink,
+            child: SizedBox(width: treeW, height: treeH, child: sprite),
+          ),
+          // 앞: 작은 흙더미로 줄기 밑동만 살짝 가림(원본 흙더미는 그대로 보임)
+          Image.asset('assets/gardens/mound_front.png',
+              width: soilW * frontFactor),
+        ],
+      ),
+    );
+  }
+}
 
 /// 코드로 그린 식물 (종류 × 성장단계 1~5). 나중에 에셋/Rive로 교체.
 class PlantPainter extends CustomPainter {
