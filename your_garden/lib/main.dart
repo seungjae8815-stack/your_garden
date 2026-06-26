@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'screens/lock_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/app_lock_service.dart';
 import 'services/auth_service.dart';
 import 'services/garden_service.dart';
+import 'services/notification_service.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -17,6 +20,10 @@ Future<void> main() async {
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+  // 알림 초기화(이미 켜둔 경우 예약 복원). 실패해도 앱 실행은 계속.
+  try {
+    await NotificationService.instance.init();
+  } catch (_) {}
   runApp(const YourGardenApp());
 }
 
@@ -29,7 +36,67 @@ class YourGardenApp extends StatelessWidget {
       title: '너의 정원',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const BootGate(),
+      home: const AppLockGate(child: BootGate()),
+    );
+  }
+}
+
+/// 앱 잠금 게이트 — 켜져 있으면 앱 시작·백그라운드 복귀 시 잠금화면을 덮는다.
+class AppLockGate extends StatefulWidget {
+  const AppLockGate({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<AppLockGate> createState() => _AppLockGateState();
+}
+
+class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
+  final _lock = AppLockService.instance;
+  bool _enabled = false;
+  bool? _unlocked; // null=확인 중, false=잠김, true=열림
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _check() async {
+    _enabled = await _lock.isEnabled();
+    if (!mounted) return;
+    setState(() => _unlocked = !_enabled);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      final en = await _lock.isEnabled(); // 설정에서 방금 켰을 수도 있음
+      _enabled = en;
+      if (en && mounted) setState(() => _unlocked = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        widget.child,
+        if (_unlocked != true)
+          Positioned.fill(
+            child: _unlocked == null
+                ? const ColoredBox(color: AppColors.cream)
+                : LockScreen(
+                    onUnlocked: () => setState(() => _unlocked = true)),
+          ),
+      ],
     );
   }
 }

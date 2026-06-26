@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/plant_voice.dart';
 import '../widgets/plant_painter.dart';
 
 /// 정원 탭을 다시 불러오게 하는 신호 (다른 탭에서 데이터 바꿨을 때).
@@ -18,6 +19,9 @@ class Plant {
     this.species = 'flower',
     this.placed = false,
     this.posIndex,
+    this.posX,
+    this.posY,
+    this.reflection,
     this.lastGrowthAt,
     this.startedAt,
   });
@@ -27,7 +31,10 @@ class Plant {
   final bool isComplete;
   final String species; // flower / succulent / herb / tree
   final bool placed; // 정원에 배치됨
-  final int? posIndex; // 배치된 자리 인덱스
+  final int? posIndex; // (구버전) 고정 자리 인덱스 — pos_x/pos_y 없을 때만 사용
+  final double? posX; // 자유 배치 가로 (0..1)
+  final double? posY; // 자유 배치 세로 (0..1, 식물 바닥이 닿는 지면선)
+  final String? reflection; // 거둘 때 남긴 마무리 한마디
   final DateTime? lastGrowthAt;
   final DateTime? startedAt;
 
@@ -41,6 +48,9 @@ class Plant {
         species: (m['species'] as String?) ?? 'flower',
         placed: (m['placed'] as bool?) ?? false,
         posIndex: m['pos_index'] as int?,
+        posX: (m['pos_x'] as num?)?.toDouble(),
+        posY: (m['pos_y'] as num?)?.toDouble(),
+        reflection: m['reflection'] as String?,
         lastGrowthAt: m['last_growth_at'] == null
             ? null
             : DateTime.parse(m['last_growth_at'] as String),
@@ -50,18 +60,21 @@ class Plant {
       );
 }
 
-/// addEntry 결과: 갱신된 식물 + 성장 여부.
+/// addEntry 결과: 갱신된 식물 + 성장 여부 + 식물의 답장.
 class EntryResult {
-  const EntryResult(this.plant, {required this.grew});
+  const EntryResult(this.plant, {required this.grew, this.reply = ''});
   final Plant plant;
   final bool grew; // 이번 기록으로 단계가 올랐는지
+  final String reply; // 식물의 공감 한마디
 }
 
 /// 기록(잎) 하나 — 기록 탭에서 다시보기.
 class EntryRecord {
-  const EntryRecord(this.text, this.createdAt);
+  const EntryRecord(this.text, this.createdAt, {this.mood, this.reply = ''});
   final String text;
   final DateTime createdAt;
+  final int? mood; // 기분 1..5 (없을 수 있음)
+  final String reply; // 그때 식물의 답장
 }
 
 /// 본인 정원(식물/잎) 데이터 레이어. Supabase Postgres.
@@ -114,42 +127,47 @@ class GardenService {
   }
 
   /// 마음 한 줄 묻기 → entry 저장 → (하루 첫 기록이면) 식물 1단계 성장.
+  /// 글 없이 기분(mood)만 묻어도 됨 — 그땐 user_text가 빈 문자열.
   Future<EntryResult> addEntry({
     required Plant plant,
     required String text,
+    int? mood,
   }) async {
-    // ai_empathy / ai_plant_voice 컬럼은 NOT NULL이라 빈 문자열로 채움.
-    // (AI 응답 기능은 추후 도입 시 이 자리에 채워짐)
-    await _client.from('entries').insert({
-      'plant_id': plant.id,
-      'user_text': text,
-      'ai_empathy': '',
-      'ai_plant_voice': '',
-      'stage_when_added': plant.stage,
-    });
-
     // 1일 1단계 성장 (연속 강요 X — 같은 날 두 번째 기록은 성장 없이 양분만)
     final now = DateTime.now();
     final grewToday = !testFastGrowth &&
         plant.lastGrowthAt != null &&
         _sameDay(plant.lastGrowthAt!, now);
+    final willGrow = !grewToday && plant.stage < 5;
+    final resultStage = willGrow ? plant.stage + 1 : plant.stage;
 
-    if (grewToday || plant.stage >= 5) {
-      return EntryResult(plant, grew: false);
+    // 식물의 답장(공감 + 양분). ai_empathy는 추후 AI용으로 비워둠.
+    final reply = plantReply(mood: mood, grew: willGrow, stage: resultStage);
+
+    await _client.from('entries').insert({
+      'plant_id': plant.id,
+      'user_text': text,
+      'ai_empathy': '',
+      'ai_plant_voice': reply,
+      'stage_when_added': plant.stage,
+      'mood': mood,
+    });
+
+    if (!willGrow) {
+      return EntryResult(plant, grew: false, reply: reply);
     }
 
     // 만개(stage 5)해도 자동 완성하지 않음 — 사용자가 직접 '거두기' 전까지 남아 있음.
-    final newStage = plant.stage + 1;
     final updated = await _client
         .from('plants')
         .update({
-          'current_stage': newStage,
+          'current_stage': resultStage,
           'last_growth_at': now.toUtc().toIso8601String(),
         })
         .eq('id', plant.id)
         .select()
         .single();
-    return EntryResult(Plant.fromMap(updated), grew: true);
+    return EntryResult(Plant.fromMap(updated), grew: true, reply: reply);
   }
 
   /// 테스트용: 글 없이 한 단계 성장시킴.
@@ -168,11 +186,29 @@ class GardenService {
     return Plant.fromMap(updated);
   }
 
-  /// 다 자란 식물을 모종함으로 거둠 → 완성 처리. 다음 _load에서 새 식물이 심김.
-  Future<void> harvest(String plantId) async {
-    await _client
-        .from('plants')
-        .update({'is_completed': true}).eq('id', plantId);
+  /// 다 자란 식물을 모종함으로 거둠 → 완성 처리. 거둘 때 마무리 한마디(reflection)도 남김.
+  Future<void> harvest(String plantId, {String? reflection}) async {
+    final data = <String, dynamic>{'is_completed': true};
+    if (reflection != null) data['reflection'] = reflection;
+    await _client.from('plants').update(data).eq('id', plantId);
+  }
+
+  /// 특정 식물에 묻은 마음들(오래된 순) — 감정의 여정 다시보기.
+  Future<List<EntryRecord>> entriesForPlant(String plantId) async {
+    final rows = await _client
+        .from('entries')
+        .select('user_text, created_at, mood, ai_plant_voice')
+        .eq('plant_id', plantId)
+        .order('created_at', ascending: true);
+    return (rows as List).map((m) {
+      final mm = m as Map<String, dynamic>;
+      return EntryRecord(
+        mm['user_text'] as String,
+        DateTime.parse(mm['created_at'] as String),
+        mood: mm['mood'] as int?,
+        reply: (mm['ai_plant_voice'] as String?) ?? '',
+      );
+    }).toList();
   }
 
   /// 완성(만개)한 식물들 — 도감/정원 장식용.
@@ -192,7 +228,7 @@ class GardenService {
   Future<List<EntryRecord>> recentEntries({int limit = 200}) async {
     final rows = await _client
         .from('entries')
-        .select('user_text, created_at')
+        .select('user_text, created_at, mood, ai_plant_voice')
         .order('created_at', ascending: false)
         .limit(limit);
     return (rows as List).map((m) {
@@ -200,22 +236,43 @@ class GardenService {
       return EntryRecord(
         mm['user_text'] as String,
         DateTime.parse(mm['created_at'] as String),
+        mood: mm['mood'] as int?,
+        reply: (mm['ai_plant_voice'] as String?) ?? '',
       );
     }).toList();
   }
 
-  /// 식물을 정원 자리에 심기.
-  Future<void> place(String plantId, int posIndex) async {
-    await _client
-        .from('plants')
-        .update({'placed': true, 'pos_index': posIndex}).eq('id', plantId);
+  /// 오늘(로컬 기준) 이 식물에 이미 마음을 묻었는지.
+  Future<bool> checkedInToday(String plantId) async {
+    final now = DateTime.now();
+    final startLocal = DateTime(now.year, now.month, now.day);
+    final rows = await _client
+        .from('entries')
+        .select('id')
+        .eq('plant_id', plantId)
+        .gte('created_at', startLocal.toUtc().toIso8601String())
+        .limit(1);
+    return (rows as List).isNotEmpty;
+  }
+
+  /// 식물을 정원 자유 위치에 심기 (정규화 좌표 0..1).
+  Future<void> place(String plantId, {required double x, required double y}) async {
+    await _client.from('plants').update({
+      'placed': true,
+      'pos_x': x,
+      'pos_y': y,
+      'pos_index': null,
+    }).eq('id', plantId);
   }
 
   /// 정원에서 거두기 (모종함으로).
   Future<void> unplace(String plantId) async {
-    await _client
-        .from('plants')
-        .update({'placed': false, 'pos_index': null}).eq('id', plantId);
+    await _client.from('plants').update({
+      'placed': false,
+      'pos_index': null,
+      'pos_x': null,
+      'pos_y': null,
+    }).eq('id', plantId);
   }
 
   /// 테스트용: 현재 키우는 식물의 종류 변경 (화분류/나무 확인).

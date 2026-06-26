@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/app_lock_service.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
+import '../services/notification_service.dart';
 import '../theme.dart';
 import '../widgets/plant_painter.dart';
+import 'lock_screen.dart';
 
 const _privacyUrl = 'https://seungjae8815-stack.github.io/yourgarden-policy/';
 
@@ -23,6 +26,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _isPublic = widget.profile.isPublic;
   late bool _testFast = GardenService.testFastGrowth;
   bool _busy = false;
+
+  final _notif = NotificationService.instance;
+  bool _notifOn = false;
+  TimeOfDay _notifTime = const TimeOfDay(hour: 21, minute: 0);
+
+  final _lock = AppLockService.instance;
+  bool _lockOn = false;
+  bool _bioOn = false;
+  bool _bioAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotif();
+    _loadLock();
+  }
+
+  Future<void> _loadLock() async {
+    final on = await _lock.isEnabled();
+    final bio = await _lock.biometricEnabled();
+    final avail = await _lock.canUseBiometric();
+    if (!mounted) return;
+    setState(() {
+      _lockOn = on;
+      _bioOn = bio;
+      _bioAvailable = avail;
+    });
+  }
+
+  Future<void> _toggleLock(bool v) async {
+    if (v) {
+      final pin = await Navigator.push<String>(context,
+          MaterialPageRoute(builder: (_) => const PinSetupScreen()));
+      if (pin == null) return; // 취소
+      await _lock.setPin(pin);
+      if (!mounted) return;
+      setState(() => _lockOn = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('앱 잠금을 켰어요.')));
+    } else {
+      await _lock.disable();
+      if (!mounted) return;
+      setState(() {
+        _lockOn = false;
+        _bioOn = false;
+      });
+    }
+  }
+
+  Future<void> _changePin() async {
+    final pin = await Navigator.push<String>(context,
+        MaterialPageRoute(builder: (_) => const PinSetupScreen()));
+    if (pin == null || !mounted) return;
+    await _lock.setPin(pin);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('비밀번호를 바꿨어요.')));
+  }
+
+  Future<void> _toggleBio(bool v) async {
+    await _lock.setBiometric(v);
+    if (!mounted) return;
+    setState(() => _bioOn = v);
+  }
+
+  Future<void> _loadNotif() async {
+    final on = await _notif.isEnabled();
+    final h = await _notif.hour();
+    final m = await _notif.minute();
+    if (!mounted) return;
+    setState(() {
+      _notifOn = on;
+      _notifTime = TimeOfDay(hour: h, minute: m);
+    });
+  }
+
+  Future<void> _toggleNotif(bool v) async {
+    if (v) {
+      final ok = await _notif.enable(_notifTime.hour, _notifTime.minute);
+      if (!mounted) return;
+      if (ok) {
+        setState(() => _notifOn = true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('알림 권한이 필요해요. 설정에서 알림을 허용해 주세요.')));
+      }
+    } else {
+      await _notif.disable();
+      if (!mounted) return;
+      setState(() => _notifOn = false);
+    }
+  }
+
+  Future<void> _pickNotifTime() async {
+    final picked = await showTimePicker(
+        context: context, initialTime: _notifTime);
+    if (picked == null) return;
+    setState(() => _notifTime = picked);
+    await _notif.updateTime(picked.hour, picked.minute);
+  }
+
+  String _fmtTime(TimeOfDay t) {
+    final h = t.hour;
+    final ampm = h < 12 ? '오전' : '오후';
+    final h12 = h % 12 == 0 ? 12 : h % 12;
+    return '$ampm $h12:${t.minute.toString().padLeft(2, '0')}';
+  }
 
   Future<void> _toggleTest(bool v) async {
     setState(() => _testFast = v);
@@ -222,6 +332,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
           const SizedBox(height: 14),
           _card([
+            SwitchListTile(
+              value: _notifOn,
+              onChanged: _busy ? null : _toggleNotif,
+              activeThumbColor: AppColors.green,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('매일 마음 묻기 알림',
+                  style: TextStyle(fontSize: 15, color: AppColors.ink)),
+              subtitle: const Text('하루 한 번, 부드럽게 초대해요. 안 와도 괜찮아요.',
+                  style: TextStyle(fontSize: 12, color: AppColors.faint)),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              enabled: _notifOn,
+              leading: const Icon(Icons.schedule, color: AppColors.sub),
+              title: const Text('알림 시간',
+                  style: TextStyle(fontSize: 15, color: AppColors.ink)),
+              trailing: Text(_fmtTime(_notifTime),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.sub,
+                      fontWeight: FontWeight.w600)),
+              onTap: _notifOn ? _pickNotifTime : null,
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _card([
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.shield_outlined, color: AppColors.sub),
@@ -235,6 +371,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SnackBar(content: Text('주소를 복사했어요.')));
               },
             ),
+          ]),
+          const SizedBox(height: 14),
+          _card([
+            SwitchListTile(
+              value: _lockOn,
+              onChanged: _busy ? null : _toggleLock,
+              activeThumbColor: AppColors.green,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('앱 잠금',
+                  style: TextStyle(fontSize: 15, color: AppColors.ink)),
+              subtitle: const Text('앱을 열 때 비밀번호로 나만 볼 수 있게 해요.',
+                  style: TextStyle(fontSize: 12, color: AppColors.faint)),
+            ),
+            if (_lockOn) ...[
+              if (_bioAvailable)
+                SwitchListTile(
+                  value: _bioOn,
+                  onChanged: _toggleBio,
+                  activeThumbColor: AppColors.green,
+                  contentPadding: EdgeInsets.zero,
+                  secondary:
+                      const Icon(Icons.fingerprint, color: AppColors.sub),
+                  title: const Text('생체인증 사용',
+                      style: TextStyle(fontSize: 15, color: AppColors.ink)),
+                  subtitle: const Text('지문·얼굴로 빠르게 열어요.',
+                      style: TextStyle(fontSize: 12, color: AppColors.faint)),
+                ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.password, color: AppColors.sub),
+                title: const Text('비밀번호 변경',
+                    style: TextStyle(fontSize: 15, color: AppColors.ink)),
+                onTap: _changePin,
+              ),
+            ],
           ]),
           const SizedBox(height: 14),
           _card([

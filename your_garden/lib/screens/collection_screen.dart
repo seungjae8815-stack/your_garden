@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
 import '../widgets/plant_painter.dart';
+import 'collection_detail_screen.dart';
 
 /// 도감 탭 — 완성(만개)한 식물들을 모아 보는 수집 화면.
 class CollectionScreen extends StatefulWidget {
@@ -107,7 +108,13 @@ class _CollectionScreenState extends State<CollectionScreen> {
             itemCount: _plants.length,
             itemBuilder: (_, i) {
               final p = _plants[i];
-              return Container(
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => CollectionDetailScreen(plant: p)),
+                ),
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.card,
                   borderRadius: BorderRadius.circular(18),
@@ -138,6 +145,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
                             fontSize: 11, color: AppColors.sub)),
                   ],
                 ),
+              ),
               );
             },
           ),
