@@ -3,9 +3,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
-import 'main_shell.dart';
+import '../services/garden_service.dart';
+import 'first_checkin_screen.dart';
 
-/// 첫 진입 1회. 컨셉 소개 → 메타포/프라이버시 → 정원 이름 + 공개 여부 + 약관 동의.
+/// 첫 진입 1회. 컨셉 → 메타포 → 정원·첫 식물 이름 짓기 + 약관 동의.
+/// 끝나면 곧바로 손잡은 첫 체크인(FirstCheckInScreen)으로 이어진다.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.profile});
   final AuthResult profile;
@@ -18,6 +20,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const int _lastPage = 2;
 
   final PageController _controller = PageController();
+  final TextEditingController _gardenName = TextEditingController();
+  final TextEditingController _plantName = TextEditingController();
   int _page = 0;
   bool _isPublic = false;
   bool _agreed = false;
@@ -26,6 +30,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _gardenName.dispose();
+    _plantName.dispose();
     super.dispose();
   }
 
@@ -42,14 +48,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!_agreed || _finishing) return;
     setState(() => _finishing = true);
     try {
-      await AuthService(Supabase.instance.client).completeOnboarding(
+      final client = Supabase.instance.client;
+      final auth = AuthService(client);
+      final garden = GardenService(client);
+
+      final gardenName = _gardenName.text.trim();
+      final plantName = _plantName.text.trim();
+
+      await auth.completeOnboarding(
         uid: widget.profile.uid,
         isPublic: _isPublic,
+        gardenName: gardenName,
       );
+
+      // 첫 식물을 마련하고 이름을 붙인다 (감정 첫 챕터).
+      final plant = await garden.ensureActivePlant(widget.profile.uid);
+      if (plantName.isNotEmpty) {
+        await garden.renamePlant(plant.id, plantName);
+      }
+
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => MainShell(profile: widget.profile)),
+        MaterialPageRoute(
+          builder: (_) => FirstCheckInScreen(
+            profile: widget.profile.copyWith(
+                gardenName: gardenName.isEmpty ? null : gardenName),
+            plant: plantName.isEmpty ? plant : plant.withName(plantName),
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -73,8 +100,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   const _ConceptPage(),
                   const _MetaphorPage(),
-                  _IdentityPage(
+                  _NamingPage(
                     nickname: widget.profile.nickname,
+                    gardenName: _gardenName,
+                    plantName: _plantName,
                     isPublic: _isPublic,
                     onPublicChanged: (v) => setState(() => _isPublic = v),
                     agreed: _agreed,
@@ -90,7 +119,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: _page < _lastPage
                   ? _PrimaryButton(label: '다음', onPressed: _next)
                   : _PrimaryButton(
-                      label: '정원 시작하기',
+                      label: '정원 만들기',
                       onPressed: _agreed && !_finishing ? _finish : null,
                       loading: _finishing,
                     ),
@@ -170,9 +199,11 @@ class _MetaphorPage extends StatelessWidget {
   }
 }
 
-class _IdentityPage extends StatelessWidget {
-  const _IdentityPage({
+class _NamingPage extends StatelessWidget {
+  const _NamingPage({
     required this.nickname,
+    required this.gardenName,
+    required this.plantName,
     required this.isPublic,
     required this.onPublicChanged,
     required this.agreed,
@@ -180,10 +211,14 @@ class _IdentityPage extends StatelessWidget {
   });
 
   final String nickname;
+  final TextEditingController gardenName;
+  final TextEditingController plantName;
   final bool isPublic;
   final ValueChanged<bool> onPublicChanged;
   final bool agreed;
   final ValueChanged<bool> onAgreedChanged;
+
+  static const List<String> _plantSuggestions = ['첫 마음', '오늘', '작은 위로', '쉼'];
 
   void _showPrivacy(BuildContext context) {
     showModalBottomSheet<void>(
@@ -240,47 +275,56 @@ class _IdentityPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           const Text(
-            '당신의 정원',
+            '이름을 지어주세요',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
               color: Color(0xFF5D4037),
             ),
           ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFDF5),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE0D7C5)),
-            ),
-            child: Row(
-              children: [
-                const Text('🪴', style: TextStyle(fontSize: 28)),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('자동으로 지어진 이름',
-                          style: TextStyle(
-                              fontSize: 11, color: Color(0xFFA1887F))),
-                      const SizedBox(height: 2),
-                      Text(nickname,
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF5D4037))),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 6),
+          const Text(
+            '이름을 붙이면 더 애틋해져요. 비워두면 알아서 지어둘게요.',
+            style: TextStyle(fontSize: 13, height: 1.5, color: Color(0xFFA1887F)),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
+
+          // 정원 이름
+          const _FieldLabel('🪴 내 정원 이름'),
+          const SizedBox(height: 8),
+          _NameField(
+            controller: gardenName,
+            hint: '예: $nickname',
+            maxLength: 16,
+          ),
+          const SizedBox(height: 18),
+
+          // 첫 식물 이름
+          const _FieldLabel('🌱 첫 식물 이름'),
+          const SizedBox(height: 8),
+          _NameField(
+            controller: plantName,
+            hint: '예: 첫 마음',
+            maxLength: 16,
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final s in _plantSuggestions)
+                _SuggestChip(label: s, onTap: () {
+                  plantName.text = s;
+                  plantName.selection = TextSelection.collapsed(
+                      offset: s.length);
+                }),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // 공개 여부
           Container(
             decoration: BoxDecoration(
               color: const Color(0xFFFFFDF5),
@@ -298,13 +342,16 @@ class _IdentityPage extends StatelessWidget {
                       color: Color(0xFF5D4037))),
               subtitle: const Text(
                 '기본은 나만의 정원이에요. 나중에 다른 정원과 마음을 나누는 기능이 열릴 때 참여할지 미리 정해둘 수 있어요. (설정에서 언제든 변경)',
-                style: TextStyle(fontSize: 12, height: 1.4, color: Color(0xFFA1887F)),
+                style:
+                    TextStyle(fontSize: 12, height: 1.4, color: Color(0xFFA1887F)),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             ),
           ),
           const SizedBox(height: 16),
+
+          // 약관 동의
           Row(
             children: [
               Checkbox(
@@ -329,6 +376,86 @@ class _IdentityPage extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text,
+        style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF5D4037)));
+  }
+}
+
+class _NameField extends StatelessWidget {
+  const _NameField({
+    required this.controller,
+    required this.hint,
+    required this.maxLength,
+  });
+  final TextEditingController controller;
+  final String hint;
+  final int maxLength;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      maxLength: maxLength,
+      textInputAction: TextInputAction.done,
+      style: const TextStyle(fontSize: 16, color: Color(0xFF5D4037)),
+      decoration: InputDecoration(
+        hintText: hint,
+        counterText: '',
+        hintStyle: const TextStyle(color: Color(0xFFBCAAA4)),
+        filled: true,
+        fillColor: const Color(0xFFFFFDF5),
+        border: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: Color(0xFFE0D7C5)),
+        ),
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: Color(0xFFE0D7C5)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: Color(0xFF7CB342), width: 2),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+}
+
+class _SuggestChip extends StatelessWidget {
+  const _SuggestChip({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F8E9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFCFE3B8)),
+        ),
+        child: Text(label,
+            style: const TextStyle(
+                fontSize: 13, color: Color(0xFF558B2F))),
       ),
     );
   }

@@ -17,6 +17,7 @@ class Plant {
     required this.stage,
     required this.isComplete,
     this.species = 'flower',
+    this.name,
     this.placed = false,
     this.posIndex,
     this.posX,
@@ -30,6 +31,7 @@ class Plant {
   final int stage; // current_stage 1..5
   final bool isComplete;
   final String species; // flower / succulent / herb / tree
+  final String? name; // 내가 지어준 이름 (감정 챕터 이름)
   final bool placed; // 정원에 배치됨
   final int? posIndex; // (구버전) 고정 자리 인덱스 — pos_x/pos_y 없을 때만 사용
   final double? posX; // 자유 배치 가로 (0..1)
@@ -41,11 +43,28 @@ class Plant {
   /// 다 자람(만개). 거두기 전까지 받침대에 남아 있음. (isComplete=거둬서 모종함行)
   bool get isBloomed => stage >= 5;
 
+  /// 이름만 바꾼 사본 (DB 갱신 후 화면에 바로 반영할 때).
+  Plant withName(String? name) => Plant(
+        id: id,
+        stage: stage,
+        isComplete: isComplete,
+        species: species,
+        name: name,
+        placed: placed,
+        posIndex: posIndex,
+        posX: posX,
+        posY: posY,
+        reflection: reflection,
+        lastGrowthAt: lastGrowthAt,
+        startedAt: startedAt,
+      );
+
   factory Plant.fromMap(Map<String, dynamic> m) => Plant(
         id: m['id'] as String,
         stage: m['current_stage'] as int,
         isComplete: m['is_completed'] as bool,
         species: (m['species'] as String?) ?? 'flower',
+        name: m['name'] as String?,
         placed: (m['placed'] as bool?) ?? false,
         posIndex: m['pos_index'] as int?,
         posX: (m['pos_x'] as num?)?.toDouble(),
@@ -70,12 +89,25 @@ class EntryResult {
 
 /// 기록(잎) 하나 — 기록 탭에서 다시보기.
 class EntryRecord {
-  const EntryRecord(this.text, this.createdAt, {this.mood, this.reply = ''});
+  const EntryRecord(
+    this.text,
+    this.createdAt, {
+    this.mood,
+    this.reply = '',
+    this.topicTags = const [],
+    this.emotionTags = const [],
+  });
   final String text;
   final DateTime createdAt;
   final int? mood; // 기분 1..5 (없을 수 있음)
   final String reply; // 그때 식물의 답장
+  final List<String> topicTags; // 주제(양분) 태그 키
+  final List<String> emotionTags; // 감정 태그 키
 }
+
+/// Postgres `text[]` (`List<dynamic>`) → `List<String>`.
+List<String> _strList(dynamic v) =>
+    v == null ? const [] : (v as List).map((e) => e.toString()).toList();
 
 /// 본인 정원(식물/잎) 데이터 레이어. Supabase Postgres.
 class GardenService {
@@ -132,6 +164,8 @@ class GardenService {
     required Plant plant,
     required String text,
     int? mood,
+    List<String> topicTags = const [],
+    List<String> emotionTags = const [],
   }) async {
     // 1일 1단계 성장 (연속 강요 X — 같은 날 두 번째 기록은 성장 없이 양분만)
     final now = DateTime.now();
@@ -151,6 +185,8 @@ class GardenService {
       'ai_plant_voice': reply,
       'stage_when_added': plant.stage,
       'mood': mood,
+      'topic_tags': topicTags.isEmpty ? null : topicTags,
+      'emotion_tags': emotionTags.isEmpty ? null : emotionTags,
     });
 
     if (!willGrow) {
@@ -197,7 +233,7 @@ class GardenService {
   Future<List<EntryRecord>> entriesForPlant(String plantId) async {
     final rows = await _client
         .from('entries')
-        .select('user_text, created_at, mood, ai_plant_voice')
+        .select('user_text, created_at, mood, ai_plant_voice, topic_tags, emotion_tags')
         .eq('plant_id', plantId)
         .order('created_at', ascending: true);
     return (rows as List).map((m) {
@@ -207,6 +243,8 @@ class GardenService {
         DateTime.parse(mm['created_at'] as String),
         mood: mm['mood'] as int?,
         reply: (mm['ai_plant_voice'] as String?) ?? '',
+        topicTags: _strList(mm['topic_tags']),
+        emotionTags: _strList(mm['emotion_tags']),
       );
     }).toList();
   }
@@ -228,7 +266,7 @@ class GardenService {
   Future<List<EntryRecord>> recentEntries({int limit = 200}) async {
     final rows = await _client
         .from('entries')
-        .select('user_text, created_at, mood, ai_plant_voice')
+        .select('user_text, created_at, mood, ai_plant_voice, topic_tags, emotion_tags')
         .order('created_at', ascending: false)
         .limit(limit);
     return (rows as List).map((m) {
@@ -238,6 +276,8 @@ class GardenService {
         DateTime.parse(mm['created_at'] as String),
         mood: mm['mood'] as int?,
         reply: (mm['ai_plant_voice'] as String?) ?? '',
+        topicTags: _strList(mm['topic_tags']),
+        emotionTags: _strList(mm['emotion_tags']),
       );
     }).toList();
   }
@@ -281,6 +321,14 @@ class GardenService {
     await _client
         .from('plants')
         .update({'species': species}).eq('id', p.id);
+  }
+
+  /// 식물에 이름 붙이기 (감정 챕터 이름). 빈 문자열이면 지움.
+  Future<void> renamePlant(String plantId, String name) async {
+    final trimmed = name.trim();
+    await _client
+        .from('plants')
+        .update({'name': trimmed.isEmpty ? null : trimmed}).eq('id', plantId);
   }
 
   /// 정원 공개 여부 변경.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/daily_prompts.dart';
+import '../data/tags.dart';
 import '../services/crisis.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
@@ -25,6 +26,8 @@ class _InputScreenState extends State<InputScreen>
   late final GardenService _garden = GardenService(Supabase.instance.client);
   String _prompt = todaysPrompt();
   int? _mood; // 선택한 기분 1..5
+  final Set<String> _topics = {}; // 주제(양분) 태그 키
+  final Set<String> _emotions = {}; // 감정 태그 키
   bool _submitting = false;
 
   bool get _canSubmit =>
@@ -77,8 +80,13 @@ class _InputScreenState extends State<InputScreen>
 
     setState(() => _submitting = true);
     try {
-      final result =
-          await _garden.addEntry(plant: widget.plant, text: text, mood: _mood);
+      final result = await _garden.addEntry(
+        plant: widget.plant,
+        text: text,
+        mood: _mood,
+        topicTags: _topics.toList(),
+        emotionTags: _emotions.toList(),
+      );
       markGardenDirty(); // 달력·도감 즉시 갱신
       if (!mounted) return;
       await _showPlanted(result.reply);
@@ -221,7 +229,63 @@ class _InputScreenState extends State<InputScreen>
               SizedBox(height: 220, child: _field()),
             ],
           ),
+          const SizedBox(height: 22),
+          _tagSection('무엇이 오늘의 양분이 됐나요? (선택)', kTopicTags, _topics),
+          const SizedBox(height: 18),
+          _tagSection('지금 어떤 감정인가요? (선택)', kEmotionTags, _emotions),
         ],
+      ),
+    );
+  }
+
+  // 주제·감정 태그 한 묶음 — 작은 칩 멀티 선택(선택사항).
+  Widget _tagSection(String label, List<Tag> tags, Set<String> selected) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 13, color: Color(0xFFA1887F))),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [for (final t in tags) _tagChip(t, selected)],
+        ),
+      ],
+    );
+  }
+
+  Widget _tagChip(Tag t, Set<String> selected) {
+    final on = selected.contains(t.key);
+    return GestureDetector(
+      onTap: _submitting
+          ? null
+          : () => setState(() {
+                on ? selected.remove(t.key) : selected.add(t.key);
+              }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: on ? const Color(0xFFDCEFC4) : const Color(0xFFFFFDF5),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: on ? AppColors.green : const Color(0xFFE0D7C5),
+            width: on ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(t.emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 5),
+            Text(t.label,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: on ? AppColors.greenDark : const Color(0xFF8D6E63),
+                    fontWeight: on ? FontWeight.w700 : FontWeight.w400)),
+          ],
+        ),
       ),
     );
   }

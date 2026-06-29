@@ -87,6 +87,8 @@ class _ReflectionScreenState extends State<ReflectionScreen> {
   @override
   Widget build(BuildContext context) {
     final p = widget.plant;
+    // 엣지투엣지(Android 15+)에서 하단 시스템 바(제스처 바)에 버튼이 가리지 않게 인셋만큼 더 띄움.
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
     return Scaffold(
       appBar: AppBar(
         title: Text('${speciesLabel(p.species)} 돌아보기',
@@ -94,9 +96,12 @@ class _ReflectionScreenState extends State<ReflectionScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.green))
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          : Column(
               children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    children: [
                 SizedBox(
                   height: 150,
                   child: PlantSprite(species: p.species, stage: 5, inPot: false),
@@ -186,37 +191,48 @@ class _ReflectionScreenState extends State<ReflectionScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _harvesting ? null : _harvest,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28)),
-                    ),
-                    child: _harvesting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('이 꽃을 거두기',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600)),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton(
-                    onPressed: _harvesting
-                        ? null
-                        : () => Navigator.pop(context, false),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.faint),
-                    child: const Text('그대로 둘게요'),
+                // 스크롤 없이 항상 보이는 하단 액션 — 거두기 / 그대로 두기.
+                Padding(
+                  padding: EdgeInsets.fromLTRB(20, 6, 20, 10 + bottomInset),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _harvesting ? null : _harvest,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(28)),
+                          ),
+                          child: _harvesting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : const Text('이 꽃을 거두기',
+                                  style: TextStyle(
+                                      fontSize: 16, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      Center(
+                        child: TextButton(
+                          onPressed: _harvesting
+                              ? null
+                              : () => Navigator.pop(context, false),
+                          style: TextButton.styleFrom(
+                              foregroundColor: AppColors.faint),
+                          child: const Text('그대로 둘게요'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -39,7 +39,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final p = _plant;
     return Scaffold(
       appBar: AppBar(
-        title: Text(speciesLabel(p.species),
+        title: Text(
+            (p.name != null && p.name!.trim().isNotEmpty)
+                ? p.name!.trim()
+                : speciesLabel(p.species),
             style: const TextStyle(color: AppColors.ink)),
       ),
       body: DecoratedBox(

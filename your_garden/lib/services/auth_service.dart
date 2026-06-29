@@ -41,7 +41,7 @@ class AuthService {
     // 3) profile 존재 여부 확인 → 없으면 닉네임 생성하며 insert
     final existing = await _client
         .from('profiles')
-        .select('id, nickname, is_public')
+        .select('id, nickname, is_public, garden_name')
         .eq('id', uid)
         .maybeSingle();
 
@@ -60,6 +60,7 @@ class AuthService {
       uid: uid,
       nickname: existing['nickname'] as String,
       isPublic: existing['is_public'] as bool,
+      gardenName: existing['garden_name'] as String?,
       isNew: false,
     );
   }
@@ -69,12 +70,16 @@ class AuthService {
     return (await _secure.read(key: _kOnboarded)) == '1';
   }
 
-  /// 온보딩 완료 — 공개 여부 저장 + 완료 플래그 기록.
+  /// 온보딩 완료 — 공개 여부·정원 이름 저장 + 완료 플래그 기록.
   Future<void> completeOnboarding({
     required String uid,
     required bool isPublic,
+    String? gardenName,
   }) async {
-    await _client.from('profiles').update({'is_public': isPublic}).eq('id', uid);
+    final data = <String, dynamic>{'is_public': isPublic};
+    final name = gardenName?.trim();
+    if (name != null && name.isNotEmpty) data['garden_name'] = name;
+    await _client.from('profiles').update(data).eq('id', uid);
     await _secure.write(key: _kOnboarded, value: '1');
   }
 
@@ -170,10 +175,26 @@ class AuthResult {
     required this.nickname,
     required this.isPublic,
     required this.isNew,
+    this.gardenName,
   });
 
   final String uid;
   final String nickname;
   final bool isPublic;
   final bool isNew;
+  final String? gardenName; // 내가 지어준 정원 이름 (없으면 닉네임 사용)
+
+  /// 화면에 보일 정원 이름 — 직접 지은 이름 우선, 없으면 자동 닉네임.
+  String get displayGardenName =>
+      (gardenName != null && gardenName!.trim().isNotEmpty)
+          ? gardenName!.trim()
+          : nickname;
+
+  AuthResult copyWith({String? gardenName}) => AuthResult(
+        uid: uid,
+        nickname: nickname,
+        isPublic: isPublic,
+        isNew: isNew,
+        gardenName: gardenName ?? this.gardenName,
+      );
 }

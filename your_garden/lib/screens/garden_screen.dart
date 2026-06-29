@@ -465,7 +465,9 @@ class _GardenScreenState extends State<GardenScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('너의 정원',
+                  Text(widget.profile.gardenName ?? '너의 정원',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 20,
                           color: _night ? Colors.white : AppColors.ink,

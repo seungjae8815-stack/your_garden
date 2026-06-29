@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/tags.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
 import '../widgets/mood_icon.dart';
+import 'insights_screen.dart';
 import 'year_pixels_screen.dart';
 
 /// 기록 탭 — 마음 달력. 날짜마다 그날의 마음 날씨를 표시하고, 누르면 그날의 기록을 본다.
@@ -81,6 +83,15 @@ class _JournalScreenState extends State<JournalScreen> {
         title: const Text('마음 달력', style: TextStyle(color: AppColors.ink)),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.insights_rounded, color: AppColors.sub),
+            tooltip: '마음 흐름',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => InsightsScreen(profile: widget.profile)),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.grid_view_rounded, color: AppColors.sub),
             tooltip: '올해의 마음',
@@ -247,6 +258,19 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
+  Widget _miniTag(Tag t) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F7E8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDCEFC4)),
+      ),
+      child: Text('${t.emoji} ${t.label}',
+          style: const TextStyle(fontSize: 11, color: AppColors.greenDark)),
+    );
+  }
+
   Widget _entryCard(EntryRecord e) {
     final l = e.createdAt.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
@@ -280,6 +304,19 @@ class _JournalScreenState extends State<JournalScreen> {
                     e.text.isEmpty ? FontStyle.italic : FontStyle.normal,
                 color: e.text.isEmpty ? AppColors.faint : AppColors.ink),
           ),
+          if (e.topicTags.isNotEmpty || e.emotionTags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final k in e.topicTags)
+                  if (topicTagByKey(k) != null) _miniTag(topicTagByKey(k)!),
+                for (final k in e.emotionTags)
+                  if (emotionTagByKey(k) != null) _miniTag(emotionTagByKey(k)!),
+              ],
+            ),
+          ],
           if (e.reply.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
