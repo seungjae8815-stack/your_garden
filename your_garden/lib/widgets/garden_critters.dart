@@ -99,13 +99,13 @@ class _GardenCrittersState extends State<GardenCritters>
       size: type == 'butterfly'
           ? r(34, 44)
           : type == 'bee'
-              ? r(28, 34)
-              : r(26, 34),
+          ? r(28, 34)
+          : r(26, 34),
       flapHz: type == 'butterfly'
           ? 5.0
           : type == 'bee'
-              ? 11.0
-              : 6.0,
+          ? 11.0
+          : 6.0,
     );
   }
 
@@ -123,8 +123,8 @@ class _GardenCrittersState extends State<GardenCritters>
     final pool = c.type == 'butterfly'
         ? _butterflyLines
         : c.type == 'bee'
-            ? _beeLines
-            : _fireflyLines;
+        ? _beeLines
+        : _fireflyLines;
     setState(() {
       _talkIdx = i;
       _talkMsg = pool[_rng.nextInt(pool.length)];
@@ -172,8 +172,14 @@ class _GardenCrittersState extends State<GardenCritters>
               // 반딧불: 꼬리 빛 번짐 + 천천히 깜빡임
               Widget inner = art;
               if (c.type == 'firefly') {
-                final pulse = 0.4 +
-                    0.6 * (0.5 + 0.5 * math.sin(2 * math.pi * (c.px1 + _c.value * 16)));
+                final pulse =
+                    0.4 +
+                    0.6 *
+                        (0.5 +
+                            0.5 *
+                                math.sin(
+                                  2 * math.pi * (c.px1 + _c.value * 16),
+                                ));
                 inner = Stack(
                   alignment: Alignment.center,
                   clipBehavior: Clip.none,
@@ -186,8 +192,9 @@ class _GardenCrittersState extends State<GardenCritters>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFC9FF5C)
-                                  .withValues(alpha: 0.85 * pulse),
+                              color: const Color(
+                                0xFFC9FF5C,
+                              ).withValues(alpha: 0.85 * pulse),
                               blurRadius: c.size * 0.8,
                               spreadRadius: c.size * 0.18,
                             ),
@@ -199,17 +206,19 @@ class _GardenCrittersState extends State<GardenCritters>
                   ],
                 );
               }
-              children.add(Positioned(
-                left: x - c.size,
-                top: y - c.size,
-                width: c.size * 2,
-                height: c.size * 2,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => _talk(i),
-                  child: Center(child: inner),
+              children.add(
+                Positioned(
+                  left: x - c.size,
+                  top: y - c.size,
+                  width: c.size * 2,
+                  height: c.size * 2,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _talk(i),
+                    child: Center(child: inner),
+                  ),
                 ),
-              ));
+              );
 
               if (talking) {
                 children.add(_bubble(x, y - c.size, w));
@@ -263,10 +272,12 @@ class _Critter {
   final double size, flapHz;
 
   Offset posAt(double phase) {
-    final x = cx +
+    final x =
+        cx +
         ax * math.sin(2 * math.pi * (fx1 * phase + px1)) +
         bx * math.sin(2 * math.pi * (fx2 * phase + px2));
-    final y = cy +
+    final y =
+        cy +
         ay * math.sin(2 * math.pi * (fy1 * phase + py1)) +
         by * math.cos(2 * math.pi * (fy2 * phase + py2));
     return Offset(x.clamp(0.04, 0.96), y.clamp(0.12, 0.80));
@@ -282,7 +293,11 @@ class _Critter {
 
 /// 곤충 그림: 에셋 있으면 그림, 없으면 이모지 폴백.
 class _CritterArt extends StatelessWidget {
-  const _CritterArt({required this.type, required this.frame, required this.size});
+  const _CritterArt({
+    required this.type,
+    required this.frame,
+    required this.size,
+  });
   final String type;
   final int frame;
   final double size;
@@ -299,8 +314,8 @@ class _CritterArt extends StatelessWidget {
         type == 'butterfly'
             ? '🦋'
             : type == 'bee'
-                ? '🐝'
-                : '✨',
+            ? '🐝'
+            : '✨',
         style: TextStyle(fontSize: size * 0.78),
       ),
     );
@@ -323,14 +338,21 @@ class _SpeechBubble extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
             boxShadow: const [
-              BoxShadow(color: Color(0x22000000), blurRadius: 6, offset: Offset(0, 2)),
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
             ],
           ),
           child: Text(
             text,
             textAlign: TextAlign.center,
             style: const TextStyle(
-                fontSize: 12.5, color: AppColors.ink, height: 1.3),
+              fontSize: 12.5,
+              color: AppColors.ink,
+              height: 1.3,
+            ),
           ),
         ),
         // 말풍선 꼬리

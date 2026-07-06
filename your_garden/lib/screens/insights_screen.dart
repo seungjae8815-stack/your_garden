@@ -5,6 +5,7 @@ import '../data/tags.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
+import '../widgets/load_error_view.dart';
 
 /// 인사이트 — 마음 날씨 흐름 + 양분(주제)별 마음 날씨 상관 + 감정 분포 + 주간 요약.
 /// 체크인에 쌓인 mood·태그 데이터를 모아 "거리를 두고 바라보기"를 돕는다.
@@ -32,6 +33,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   late final GardenService _garden = GardenService(Supabase.instance.client);
   List<EntryRecord> _entries = const [];
   bool _loading = true;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -46,10 +48,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
       setState(() {
         _entries = list;
         _loading = false;
+        _failed = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
     }
   }
 
@@ -62,34 +68,38 @@ class _InsightsScreenState extends State<InsightsScreen> {
         centerTitle: true,
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.green))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.green),
+            )
+          : _failed
+          ? LoadErrorView(onRetry: _load)
           : _entries.isEmpty
-              ? _emptyState()
-              : ListView(
-                  padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + bottomInset),
-                  children: [
-                    _summaryCard(),
-                    const SizedBox(height: 18),
-                    _section('지난 14일 마음 날씨', _moodTrend()),
-                    const SizedBox(height: 18),
-                    _section('무엇이 양분일 때 마음이 어땠나', _topicCorrelation()),
-                    const SizedBox(height: 18),
-                    _section('자주 묻은 감정', _emotionDistribution()),
-                  ],
-                ),
+          ? _emptyState()
+          : ListView(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + bottomInset),
+              children: [
+                _summaryCard(),
+                const SizedBox(height: 18),
+                _section('지난 14일 마음 날씨', _moodTrend()),
+                const SizedBox(height: 18),
+                _section('무엇이 양분일 때 마음이 어땠나', _topicCorrelation()),
+                const SizedBox(height: 18),
+                _section('자주 묻은 감정', _emotionDistribution()),
+              ],
+            ),
     );
   }
 
   Widget _emptyState() => const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            '아직 마음이 모이는 중이에요.\n며칠 더 마음을 묻으면\n흐름이 보이기 시작해요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 15, height: 1.7, color: AppColors.sub),
-          ),
-        ),
-      );
+    child: Padding(
+      padding: EdgeInsets.symmetric(horizontal: 40),
+      child: Text(
+        '아직 마음이 모이는 중이에요.\n며칠 더 마음을 묻으면\n흐름이 보이기 시작해요.',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 15, height: 1.7, color: AppColors.sub),
+      ),
+    ),
+  );
 
   Widget _section(String title, Widget child) {
     return Container(
@@ -103,11 +113,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
           const SizedBox(height: 16),
           child,
         ],
@@ -131,9 +144,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
           const Text('🌿', style: TextStyle(fontSize: 20)),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(msg,
-                style: const TextStyle(
-                    fontSize: 15, height: 1.6, color: AppColors.greenDark)),
+            child: Text(
+              msg,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.6,
+                color: AppColors.greenDark,
+              ),
+            ),
           ),
         ],
       ),
@@ -155,7 +173,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
         topicCount[t] = (topicCount[t] ?? 0) + 1;
       }
     }
-    final moods = week.where((e) => e.mood != null).map((e) => e.mood!).toList();
+    final moods = week
+        .where((e) => e.mood != null)
+        .map((e) => e.mood!)
+        .toList();
     final n = week.length;
 
     if (topicCount.isEmpty) {
@@ -166,10 +187,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
       return '이번 주 $n번 마음을 묻었어요. 평균 마음 날씨는 ${_moodWord(avg)} 쪽이었어요.';
     }
 
-    final topKey = (topicCount.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value)))
-        .first
-        .key;
+    final topKey =
+        (topicCount.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .first
+            .key;
     final topLabel = topicTagByKey(topKey)?.label ?? topKey;
 
     // 그 주제를 묻은 날의 평균 마음 vs 전체 평균 비교
@@ -223,8 +245,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
     }
     final hasAny = counts.any((c) => c > 0);
     if (!hasAny) {
-      return const Text('마음 날씨를 고른 기록이 아직 없어요.',
-          style: TextStyle(fontSize: 13, color: AppColors.faint));
+      return const Text(
+        '마음 날씨를 고른 기록이 아직 없어요.',
+        style: TextStyle(fontSize: 13, color: AppColors.faint),
+      );
     }
 
     return SizedBox(
@@ -245,7 +269,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  Widget _trendBar({double? avg, required DateTime day, required bool showLabel}) {
+  Widget _trendBar({
+    double? avg,
+    required DateTime day,
+    required bool showLabel,
+  }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -270,8 +298,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
         SizedBox(
           height: 13,
           child: showLabel
-              ? Text('${day.day}',
-                  style: const TextStyle(fontSize: 10, color: AppColors.faint))
+              ? Text(
+                  '${day.day}',
+                  style: const TextStyle(fontSize: 10, color: AppColors.faint),
+                )
               : null,
         ),
       ],
@@ -289,14 +319,15 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
     if (byTopic.isEmpty) {
-      return const Text('주제 태그와 마음 날씨가 함께 쌓이면\n어떤 양분일 때 마음이 흐렸는지 보여요.',
-          style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.faint));
+      return const Text(
+        '주제 태그와 마음 날씨가 함께 쌓이면\n어떤 양분일 때 마음이 흐렸는지 보여요.',
+        style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.faint),
+      );
     }
     final rows = byTopic.entries.map((e) {
       final avg = e.value.reduce((a, b) => a + b) / e.value.length;
       return _CorrRow(key: e.key, avg: avg, count: e.value.length);
-    }).toList()
-      ..sort((a, b) => a.avg.compareTo(b.avg)); // 흐린(낮은) 것부터
+    }).toList()..sort((a, b) => a.avg.compareTo(b.avg)); // 흐린(낮은) 것부터
 
     return Column(
       children: [
@@ -321,10 +352,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
               Text(emoji, style: const TextStyle(fontSize: 14)),
               const SizedBox(width: 5),
               Flexible(
-                child: Text(label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.ink)),
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.ink),
+                ),
               ),
             ],
           ),
@@ -345,9 +377,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
         ),
         SizedBox(
           width: 64,
-          child: Text('${r.avg.toStringAsFixed(1)} · ${r.count}번',
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 11, color: AppColors.sub)),
+          child: Text(
+            '${r.avg.toStringAsFixed(1)} · ${r.count}번',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 11, color: AppColors.sub),
+          ),
         ),
       ],
     );
@@ -362,11 +396,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
     if (count.isEmpty) {
-      return const Text('감정 태그를 달면 어떤 감정을 자주 묻었는지 보여요.',
-          style: TextStyle(fontSize: 13, color: AppColors.faint));
+      return const Text(
+        '감정 태그를 달면 어떤 감정을 자주 묻었는지 보여요.',
+        style: TextStyle(fontSize: 13, color: AppColors.faint),
+      );
     }
-    final maxCount =
-        count.values.reduce((a, b) => a > b ? a : b).toDouble();
+    final maxCount = count.values.reduce((a, b) => a > b ? a : b).toDouble();
     final rows = count.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -393,10 +428,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
               Text(emoji, style: const TextStyle(fontSize: 14)),
               const SizedBox(width: 5),
               Flexible(
-                child: Text(label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.ink)),
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.ink),
+                ),
               ),
             ],
           ),
@@ -417,9 +453,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
         ),
         SizedBox(
           width: 44,
-          child: Text('$n번',
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 11, color: AppColors.sub)),
+          child: Text(
+            '$n번',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 11, color: AppColors.sub),
+          ),
         ),
       ],
     );

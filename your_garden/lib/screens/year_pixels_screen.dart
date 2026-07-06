@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../services/share_util.dart';
 import '../theme.dart';
+import '../widgets/load_error_view.dart';
 
 /// 올해의 마음 — 날짜마다 그날 기분을 색 한 칸으로 (Year in Pixels). 한 장으로 공유.
 class YearPixelsScreen extends StatefulWidget {
@@ -23,9 +24,21 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
   late int _year;
   bool _loading = true;
   bool _sharing = false;
+  bool _failed = false;
 
   static const _months = [
-    '1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'
+    '1월',
+    '2월',
+    '3월',
+    '4월',
+    '5월',
+    '6월',
+    '7월',
+    '8월',
+    '9월',
+    '10월',
+    '11월',
+    '12월',
   ];
   static const _empty = Color(0xFFF0ECDD);
 
@@ -57,10 +70,16 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
         m.putIfAbsent(key, () => e.mood!);
       }
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = false;
+      });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
     }
   }
 
@@ -89,7 +108,11 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
         title: const Text('올해의 마음', style: TextStyle(color: AppColors.ink)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.green))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.green),
+            )
+          : _failed
+          ? LoadErrorView(onRetry: _load)
           : Column(
               children: [
                 _yearHeader(),
@@ -99,10 +122,7 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
                     child: Center(
                       child: FittedBox(
                         fit: BoxFit.contain,
-                        child: RepaintBoundary(
-                          key: _cardKey,
-                          child: _card(),
-                        ),
+                        child: RepaintBoundary(key: _cardKey, child: _card()),
                       ),
                     ),
                   ),
@@ -120,18 +140,26 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28)),
+                            borderRadius: BorderRadius.circular(28),
+                          ),
                         ),
                         icon: _sharing
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                             : const Icon(Icons.ios_share),
-                        label: const Text('공유하기',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600)),
+                        label: const Text(
+                          '공유하기',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -142,28 +170,31 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
   }
 
   Widget _yearHeader() => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left, color: AppColors.sub),
-              onPressed: () => setState(() => _year--),
-            ),
-            Text('$_year',
-                style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink)),
-            IconButton(
-              icon: const Icon(Icons.chevron_right, color: AppColors.sub),
-              onPressed: _year >= DateTime.now().year
-                  ? null
-                  : () => setState(() => _year++),
-            ),
-          ],
+    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left, color: AppColors.sub),
+          onPressed: () => setState(() => _year--),
         ),
-      );
+        Text(
+          '$_year',
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink,
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right, color: AppColors.sub),
+          onPressed: _year >= DateTime.now().year
+              ? null
+              : () => setState(() => _year++),
+        ),
+      ],
+    ),
+  );
 
   Widget _card() {
     const cell = 8.5;
@@ -175,20 +206,28 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x22000000), blurRadius: 16, offset: Offset(0, 6)),
+            color: Color(0x22000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$_year년의 마음',
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink)),
+          Text(
+            '$_year년의 마음',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
           const SizedBox(height: 2),
-          const Text('하루하루의 마음 날씨',
-              style: TextStyle(fontSize: 12, color: AppColors.faint)),
+          const Text(
+            '하루하루의 마음 날씨',
+            style: TextStyle(fontSize: 12, color: AppColors.faint),
+          ),
           const SizedBox(height: 14),
           // 12개월 그리드 — 각 달의 실제 일수만큼만 (오른쪽이 자연스럽게 계단식).
           for (var month = 1; month <= 12; month++)
@@ -198,13 +237,16 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
                 children: [
                   SizedBox(
                     width: 26,
-                    child: Text(_months[month - 1],
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.sub)),
+                    child: Text(
+                      _months[month - 1],
+                      style: const TextStyle(fontSize: 9, color: AppColors.sub),
+                    ),
                   ),
-                  for (var day = 1;
-                      day <= DateTime(_year, month + 1, 0).day;
-                      day++)
+                  for (
+                    var day = 1;
+                    day <= DateTime(_year, month + 1, 0).day;
+                    day++
+                  )
                     Container(
                       margin: const EdgeInsets.only(right: gap),
                       width: cell,
@@ -226,12 +268,15 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
             children: const [
               Text('🌿', style: TextStyle(fontSize: 14)),
               SizedBox(width: 5),
-              Text('너의 정원',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                      color: AppColors.greenDark)),
+              Text(
+                '너의 정원',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                  color: AppColors.greenDark,
+                ),
+              ),
             ],
           ),
         ],
@@ -240,23 +285,24 @@ class _YearPixelsScreenState extends State<YearPixelsScreen> {
   }
 
   Widget _legend() => Row(
-        children: [
-          const Text('많이 힘듦',
-              style: TextStyle(fontSize: 9, color: AppColors.faint)),
-          const SizedBox(width: 4),
-          for (var i = 1; i <= 5; i++)
-            Container(
-              margin: const EdgeInsets.only(right: 3),
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: _moodColor[i],
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          const SizedBox(width: 1),
-          const Text('좋음',
-              style: TextStyle(fontSize: 9, color: AppColors.faint)),
-        ],
-      );
+    children: [
+      const Text(
+        '많이 힘듦',
+        style: TextStyle(fontSize: 9, color: AppColors.faint),
+      ),
+      const SizedBox(width: 4),
+      for (var i = 1; i <= 5; i++)
+        Container(
+          margin: const EdgeInsets.only(right: 3),
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: _moodColor[i],
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+      const SizedBox(width: 1),
+      const Text('좋음', style: TextStyle(fontSize: 9, color: AppColors.faint)),
+    ],
+  );
 }

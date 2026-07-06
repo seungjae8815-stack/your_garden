@@ -68,11 +68,11 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   }
 
   TextStyle _captionStyle() => GoogleFonts.gaegu(
-        fontSize: 25,
-        height: 1.4,
-        fontWeight: FontWeight.w700,
-        color: const Color(0xFF4E3B2A),
-      );
+    fontSize: 25,
+    height: 1.4,
+    fontWeight: FontWeight.w700,
+    color: const Color(0xFF4E3B2A),
+  );
 
   Future<void> _share() async {
     if (_sharing) return;
@@ -102,9 +102,14 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cream,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('문구 쓰기',
-            style: TextStyle(
-                fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.ink)),
+        title: const Text(
+          '문구 쓰기',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink,
+          ),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -121,8 +126,9 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, ''),
-              child: const Text('지우기')),
+            onPressed: () => Navigator.pop(ctx, ''),
+            child: const Text('지우기'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.green),
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
@@ -162,9 +168,10 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: const [
                           BoxShadow(
-                              color: Color(0x22000000),
-                              blurRadius: 16,
-                              offset: Offset(0, 6)),
+                            color: Color(0x22000000),
+                            blurRadius: 16,
+                            offset: Offset(0, 6),
+                          ),
                         ],
                       ),
                       child: Column(
@@ -173,24 +180,33 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                           // 정원 이미지 + 중앙 문구 오버레이
                           ClipRRect(
                             borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20)),
+                              top: Radius.circular(20),
+                            ),
                             child: Stack(
                               children: [
-                                Image.memory(widget.imageBytes,
-                                    width: 360, fit: BoxFit.fitWidth),
+                                Image.memory(
+                                  widget.imageBytes,
+                                  width: 360,
+                                  fit: BoxFit.fitWidth,
+                                ),
                                 if (_caption.isNotEmpty)
                                   Positioned.fill(
                                     child: Center(
                                       child: Container(
                                         margin: const EdgeInsets.symmetric(
-                                            horizontal: 30),
+                                          horizontal: 30,
+                                        ),
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 22, vertical: 18),
+                                          horizontal: 22,
+                                          vertical: 18,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.66),
-                                          borderRadius:
-                                              BorderRadius.circular(18),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.66,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
                                         ),
                                         child: Text(
                                           _caption,
@@ -208,28 +224,39 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                             child: Row(
                               children: [
-                                const Text('🌿',
-                                    style: TextStyle(fontSize: 18)),
+                                const Text(
+                                  '🌿',
+                                  style: TextStyle(fontSize: 18),
+                                ),
                                 const SizedBox(width: 6),
-                                const Text('너의 정원',
-                                    style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1,
-                                        color: AppColors.greenDark)),
+                                const Text(
+                                  '너의 정원',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1,
+                                    color: AppColors.greenDark,
+                                  ),
+                                ),
                                 const Spacer(),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(widget.nickname,
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.ink)),
-                                    Text(date,
-                                        style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.faint)),
+                                    Text(
+                                      widget.nickname,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.ink,
+                                      ),
+                                    ),
+                                    Text(
+                                      date,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.faint,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -261,7 +288,8 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                             side: const BorderSide(color: AppColors.green),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24)),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
                           ),
                           icon: const Icon(Icons.edit_outlined, size: 18),
                           label: const Text('직접 쓰기'),
@@ -276,7 +304,8 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                             side: const BorderSide(color: AppColors.green),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24)),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
                           ),
                           icon: const Icon(Icons.auto_awesome, size: 18),
                           label: const Text('추천 문구'),
@@ -294,18 +323,26 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28)),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                       ),
                       icon: _sharing
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
                           : const Icon(Icons.ios_share),
-                      label: const Text('공유하기',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      label: const Text(
+                        '공유하기',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],

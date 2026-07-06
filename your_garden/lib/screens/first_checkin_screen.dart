@@ -51,8 +51,8 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
 
   String get _plantName =>
       (widget.plant.name != null && widget.plant.name!.trim().isNotEmpty)
-          ? widget.plant.name!.trim()
-          : speciesLabel(widget.plant.species);
+      ? widget.plant.name!.trim()
+      : speciesLabel(widget.plant.species);
 
   bool get _canSubmit =>
       !_submitting && (_mood != null || _controller.text.trim().isNotEmpty);
@@ -84,8 +84,11 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
 
     setState(() => _submitting = true);
     try {
-      final result =
-          await _garden.addEntry(plant: widget.plant, text: text, mood: _mood);
+      final result = await _garden.addEntry(
+        plant: widget.plant,
+        text: text,
+        mood: _mood,
+      );
       markGardenDirty();
       if (!mounted) return;
       setState(() {
@@ -97,18 +100,16 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('묻기에 실패했어요: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('묻기에 실패했어요: $e')));
     }
   }
 
   void _toGarden() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => MainShell(profile: widget.profile),
-      ),
+      MaterialPageRoute(builder: (_) => MainShell(profile: widget.profile)),
     );
   }
 
@@ -138,9 +139,13 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
               children: [
                 const SizedBox(height: 4),
                 Center(
-                  child: Text('처음 만나는 $_plantName',
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFFA1887F))),
+                  child: Text(
+                    '처음 만나는 $_plantName',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFFA1887F),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 SizedBox(height: 130, child: _plantStage(widget.plant.stage)),
@@ -149,30 +154,38 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
                   '첫 마음을 흙에 묻어볼까요?',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF5D4037)),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5D4037),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '$_plantName이(가) 당신의 첫 마음을 양분 삼아 자라요.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 13, height: 1.5, color: Color(0xFF8D6E63)),
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Color(0xFF8D6E63),
+                  ),
                 ),
                 const SizedBox(height: 22),
                 _questionCard(),
                 const SizedBox(height: 18),
-                const Text('지금 마음 날씨는 어떤가요?',
-                    style: TextStyle(fontSize: 13, color: Color(0xFFA1887F))),
+                const Text(
+                  '지금 마음 날씨는 어떤가요?',
+                  style: TextStyle(fontSize: 13, color: Color(0xFFA1887F)),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [for (final m in kMoods) _moodButton(m)],
                 ),
                 const SizedBox(height: 18),
-                const Text('아무에게도 보이지 않아요. 천천히 내려놓으세요. (선택)',
-                    style: TextStyle(fontSize: 13, color: Color(0xFFA1887F))),
+                const Text(
+                  '아무에게도 보이지 않아요. 천천히 내려놓으세요. (선택)',
+                  style: TextStyle(fontSize: 13, color: Color(0xFFA1887F)),
+                ),
                 const SizedBox(height: 10),
                 SizedBox(height: 150, child: _field()),
               ],
@@ -203,18 +216,24 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('첫 질문',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.green)),
+          const Text(
+            '첫 질문',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.green,
+            ),
+          ),
           const SizedBox(height: 6),
-          const Text(_welcomePrompt,
-              style: TextStyle(
-                  fontSize: 16.5,
-                  height: 1.45,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF5D4037))),
+          const Text(
+            _welcomePrompt,
+            style: TextStyle(
+              fontSize: 16.5,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF5D4037),
+            ),
+          ),
         ],
       ),
     );
@@ -230,7 +249,11 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
       textAlignVertical: TextAlignVertical.top,
       enabled: !_submitting,
       onChanged: (_) => setState(() {}),
-      style: const TextStyle(fontSize: 16, height: 1.6, color: Color(0xFF5D4037)),
+      style: const TextStyle(
+        fontSize: 16,
+        height: 1.6,
+        color: Color(0xFF5D4037),
+      ),
       decoration: const InputDecoration(
         hintText: '떠오르는 대로 적어보세요…',
         hintStyle: TextStyle(color: Color(0xFFBCAAA4)),
@@ -269,14 +292,16 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
           children: [
             MoodIcon(value: m.value, size: 38),
             const SizedBox(height: 4),
-            Text(m.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 9.5,
-                    height: 1.1,
-                    color:
-                        selected ? AppColors.greenDark : const Color(0xFFA1887F),
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400)),
+            Text(
+              m.label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9.5,
+                height: 1.1,
+                color: selected ? AppColors.greenDark : const Color(0xFFA1887F),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
           ],
         ),
       ),
@@ -301,9 +326,10 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
                   grew ? '첫 마음이 양분이 됐어요' : '마음이 흙에 스며들었어요',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF5D4037)),
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5D4037),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -312,7 +338,10 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
                       : '$_plantName이(가) 마음을 품었어요.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 14, height: 1.5, color: Color(0xFF8D6E63)),
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Color(0xFF8D6E63),
+                  ),
                 ),
                 if (_reply.trim().isNotEmpty) ...[
                   const SizedBox(height: 22),
@@ -328,7 +357,10 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
                       _reply,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          fontSize: 15, height: 1.55, color: Color(0xFF5D4037)),
+                        fontSize: 15,
+                        height: 1.55,
+                        color: Color(0xFF5D4037),
+                      ),
                     ),
                   ),
                 ],
@@ -343,7 +375,10 @@ class _FirstCheckInScreenState extends State<FirstCheckInScreen>
               Text(
                 '내일도 한 줄을 묻으면, $_plantName은(는) 또 자라요.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12.5, color: Color(0xFFA1887F)),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFFA1887F),
+                ),
               ),
               const SizedBox(height: 12),
               _PrimaryButton(label: '내 정원으로', onPressed: _toGarden),
@@ -431,7 +466,9 @@ class _PrimaryButton extends StatelessWidget {
           disabledBackgroundColor: const Color(0xFFCFE3B8),
           disabledForegroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           elevation: 2,
         ),
         child: loading
@@ -439,11 +476,17 @@ class _PrimaryButton extends StatelessWidget {
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
-            : Text(label,
+            : Text(
+                label,
                 style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600)),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
       ),
     );
   }

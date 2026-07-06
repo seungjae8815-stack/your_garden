@@ -45,22 +45,32 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
     final p = widget.plant;
     return Scaffold(
       appBar: AppBar(
-        title: Text(speciesLabel(p.species),
-            style: const TextStyle(color: AppColors.ink)),
+        title: Text(
+          speciesLabel(p.species),
+          style: const TextStyle(color: AppColors.ink),
+        ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.green))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.green),
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [
                 SizedBox(
                   height: 160,
-                  child: PlantSprite(species: p.species, stage: 5, inPot: false),
+                  child: PlantSprite(
+                    species: p.species,
+                    stage: 5,
+                    inPot: false,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Center(
-                  child: Text(_date(p.startedAt),
-                      style: const TextStyle(fontSize: 13, color: AppColors.sub)),
+                  child: Text(
+                    _date(p.startedAt),
+                    style: const TextStyle(fontSize: 13, color: AppColors.sub),
+                  ),
                 ),
                 if (p.reflection != null && p.reflection!.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -74,27 +84,36 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('거둘 때 남긴 마음',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.green)),
+                        const Text(
+                          '거둘 때 남긴 마음',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.green,
+                          ),
+                        ),
                         const SizedBox(height: 6),
-                        Text(p.reflection!,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                height: 1.5,
-                                color: AppColors.ink)),
+                        Text(
+                          p.reflection!,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.5,
+                            color: AppColors.ink,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
                 const SizedBox(height: 22),
-                const Text('이 꽃과 함께한 마음들',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink)),
+                const Text(
+                  '이 꽃과 함께한 마음들',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 JourneyList(entries: _entries),
               ],

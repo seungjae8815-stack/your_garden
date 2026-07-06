@@ -1,5 +1,5 @@
 name: your_garden
-description: "A new Flutter project."
+description: "마음을 묻으면 식물이 자라는 감정 정원 — 매일 한 줄로 마음을 돌보는 저널 앱."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -48,6 +48,8 @@ dependencies:
   crypto: ^3.0.6
   share_plus: ^10.1.4
   path_provider: ^2.1.5
+  url_launcher: ^6.3.1
+  package_info_plus: ^8.1.0
 
 dev_dependencies:
   flutter_test:

@@ -17,10 +17,8 @@ class MoodIcon extends StatelessWidget {
       height: size,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.medium,
-      errorBuilder: (_, _, _) => Text(
-        moodOf(value).emoji,
-        style: TextStyle(fontSize: size * 0.92),
-      ),
+      errorBuilder: (_, _, _) =>
+          Text(moodOf(value).emoji, style: TextStyle(fontSize: size * 0.92)),
     );
   }
 }

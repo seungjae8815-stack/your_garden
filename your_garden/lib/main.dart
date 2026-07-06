@@ -10,6 +10,7 @@ import 'services/app_lock_service.dart';
 import 'services/auth_service.dart';
 import 'services/garden_service.dart';
 import 'services/notification_service.dart';
+import 'services/secure_window.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -70,6 +71,8 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   Future<void> _check() async {
     _enabled = await _lock.isEnabled();
+    // 잠금을 켠 사용자만 최근 앱 미리보기·스크린샷에서 내용을 가린다. (2-6)
+    await SecureWindow.set(_enabled);
     if (!mounted) return;
     setState(() => _unlocked = !_enabled);
   }
@@ -80,6 +83,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
         state == AppLifecycleState.hidden) {
       final en = await _lock.isEnabled(); // 설정에서 방금 켰을 수도 있음
       _enabled = en;
+      await SecureWindow.set(en);
       if (en && mounted) setState(() => _unlocked = false);
     }
   }
@@ -94,7 +98,8 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
             child: _unlocked == null
                 ? const ColoredBox(color: AppColors.cream)
                 : LockScreen(
-                    onUnlocked: () => setState(() => _unlocked = true)),
+                    onUnlocked: () => setState(() => _unlocked = true),
+                  ),
           ),
       ],
     );

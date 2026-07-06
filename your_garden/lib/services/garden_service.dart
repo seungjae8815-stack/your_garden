@@ -45,38 +45,38 @@ class Plant {
 
   /// 이름만 바꾼 사본 (DB 갱신 후 화면에 바로 반영할 때).
   Plant withName(String? name) => Plant(
-        id: id,
-        stage: stage,
-        isComplete: isComplete,
-        species: species,
-        name: name,
-        placed: placed,
-        posIndex: posIndex,
-        posX: posX,
-        posY: posY,
-        reflection: reflection,
-        lastGrowthAt: lastGrowthAt,
-        startedAt: startedAt,
-      );
+    id: id,
+    stage: stage,
+    isComplete: isComplete,
+    species: species,
+    name: name,
+    placed: placed,
+    posIndex: posIndex,
+    posX: posX,
+    posY: posY,
+    reflection: reflection,
+    lastGrowthAt: lastGrowthAt,
+    startedAt: startedAt,
+  );
 
   factory Plant.fromMap(Map<String, dynamic> m) => Plant(
-        id: m['id'] as String,
-        stage: m['current_stage'] as int,
-        isComplete: m['is_completed'] as bool,
-        species: (m['species'] as String?) ?? 'flower',
-        name: m['name'] as String?,
-        placed: (m['placed'] as bool?) ?? false,
-        posIndex: m['pos_index'] as int?,
-        posX: (m['pos_x'] as num?)?.toDouble(),
-        posY: (m['pos_y'] as num?)?.toDouble(),
-        reflection: m['reflection'] as String?,
-        lastGrowthAt: m['last_growth_at'] == null
-            ? null
-            : DateTime.parse(m['last_growth_at'] as String),
-        startedAt: m['started_at'] == null
-            ? null
-            : DateTime.parse(m['started_at'] as String),
-      );
+    id: m['id'] as String,
+    stage: m['current_stage'] as int,
+    isComplete: m['is_completed'] as bool,
+    species: (m['species'] as String?) ?? 'flower',
+    name: m['name'] as String?,
+    placed: (m['placed'] as bool?) ?? false,
+    posIndex: m['pos_index'] as int?,
+    posX: (m['pos_x'] as num?)?.toDouble(),
+    posY: (m['pos_y'] as num?)?.toDouble(),
+    reflection: m['reflection'] as String?,
+    lastGrowthAt: m['last_growth_at'] == null
+        ? null
+        : DateTime.parse(m['last_growth_at'] as String),
+    startedAt: m['started_at'] == null
+        ? null
+        : DateTime.parse(m['started_at'] as String),
+  );
 }
 
 /// addEntry 결과: 갱신된 식물 + 성장 여부 + 식물의 답장.
@@ -141,11 +141,7 @@ class GardenService {
     final species = pool[_rng.nextInt(pool.length)];
     final row = await _client
         .from('plants')
-        .insert({
-          'owner_id': ownerId,
-          'species': species,
-          'current_stage': 1,
-        })
+        .insert({'owner_id': ownerId, 'species': species, 'current_stage': 1})
         .select()
         .single();
     return Plant.fromMap(row);
@@ -153,13 +149,18 @@ class GardenService {
 
   /// 이 식물에 묻힌 마음(잎) 수.
   Future<int> entryCount(String plantId) async {
-    final rows =
-        await _client.from('entries').select('id').eq('plant_id', plantId);
+    final rows = await _client
+        .from('entries')
+        .select('id')
+        .eq('plant_id', plantId);
     return (rows as List).length;
   }
 
   /// 마음 한 줄 묻기 → entry 저장 → (하루 첫 기록이면) 식물 1단계 성장.
   /// 글 없이 기분(mood)만 묻어도 됨 — 그땐 user_text가 빈 문자열.
+  ///
+  /// 서버 RPC `add_entry`로 원자화(연타 race·부분 실패·시계 조작 방지, 2-10/2-11).
+  /// 성장 여부를 서버가 판정하므로, 답장은 성장/유지 두 후보를 넘겨 서버가 고른다.
   Future<EntryResult> addEntry({
     required Plant plant,
     required String text,
@@ -167,16 +168,73 @@ class GardenService {
     List<String> topicTags = const [],
     List<String> emotionTags = const [],
   }) async {
-    // 1일 1단계 성장 (연속 강요 X — 같은 날 두 번째 기록은 성장 없이 양분만)
+    // 답장 두 후보(공감 + 양분). ai_empathy는 추후 AI용으로 비워둠.
+    final replyGrew = plant.stage < 5
+        ? plantReply(mood: mood, grew: true, stage: plant.stage + 1)
+        : plantReply(mood: mood, grew: false, stage: plant.stage);
+    final replyStay = plantReply(mood: mood, grew: false, stage: plant.stage);
+
+    try {
+      final res =
+          await _client.rpc(
+                'add_entry',
+                params: {
+                  'p_plant_id': plant.id,
+                  'p_user_text': text,
+                  'p_mood': mood,
+                  'p_topic_tags': topicTags,
+                  'p_emotion_tags': emotionTags,
+                  'p_reply_grew': replyGrew,
+                  'p_reply_stay': replyStay,
+                  'p_test_fast': testFastGrowth,
+                },
+              )
+              as Map<String, dynamic>;
+      return EntryResult(
+        Plant.fromMap(res['plant'] as Map<String, dynamic>),
+        grew: res['grew'] as bool,
+        reply: res['reply'] as String,
+      );
+    } on PostgrestException catch (e) {
+      // add_entry RPC(마이그레이션 0012) 미적용 시 레거시 비원자 경로로 폴백.
+      if (_isMissingFunction(e)) {
+        return _addEntryLegacy(
+          plant: plant,
+          text: text,
+          mood: mood,
+          topicTags: topicTags,
+          emotionTags: emotionTags,
+          replyGrew: replyGrew,
+          replyStay: replyStay,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// PostgREST가 함수를 못 찾을 때(RPC 미배포) 판별.
+  bool _isMissingFunction(PostgrestException e) =>
+      e.code == 'PGRST202' ||
+      e.message.contains('add_entry') ||
+      e.message.contains('schema cache');
+
+  /// 레거시 경로 — RPC 미배포 시에만 사용(클라이언트 판정, 비원자).
+  Future<EntryResult> _addEntryLegacy({
+    required Plant plant,
+    required String text,
+    int? mood,
+    required List<String> topicTags,
+    required List<String> emotionTags,
+    required String replyGrew,
+    required String replyStay,
+  }) async {
     final now = DateTime.now();
-    final grewToday = !testFastGrowth &&
+    final grewToday =
+        !testFastGrowth &&
         plant.lastGrowthAt != null &&
         _sameDay(plant.lastGrowthAt!, now);
     final willGrow = !grewToday && plant.stage < 5;
-    final resultStage = willGrow ? plant.stage + 1 : plant.stage;
-
-    // 식물의 답장(공감 + 양분). ai_empathy는 추후 AI용으로 비워둠.
-    final reply = plantReply(mood: mood, grew: willGrow, stage: resultStage);
+    final reply = willGrow ? replyGrew : replyStay;
 
     await _client.from('entries').insert({
       'plant_id': plant.id,
@@ -193,11 +251,10 @@ class GardenService {
       return EntryResult(plant, grew: false, reply: reply);
     }
 
-    // 만개(stage 5)해도 자동 완성하지 않음 — 사용자가 직접 '거두기' 전까지 남아 있음.
     final updated = await _client
         .from('plants')
         .update({
-          'current_stage': resultStage,
+          'current_stage': plant.stage + 1,
           'last_growth_at': now.toUtc().toIso8601String(),
         })
         .eq('id', plant.id)
@@ -233,7 +290,9 @@ class GardenService {
   Future<List<EntryRecord>> entriesForPlant(String plantId) async {
     final rows = await _client
         .from('entries')
-        .select('user_text, created_at, mood, ai_plant_voice, topic_tags, emotion_tags')
+        .select(
+          'user_text, created_at, mood, ai_plant_voice, topic_tags, emotion_tags',
+        )
         .eq('plant_id', plantId)
         .order('created_at', ascending: true);
     return (rows as List).map((m) {
@@ -266,7 +325,9 @@ class GardenService {
   Future<List<EntryRecord>> recentEntries({int limit = 200}) async {
     final rows = await _client
         .from('entries')
-        .select('user_text, created_at, mood, ai_plant_voice, topic_tags, emotion_tags')
+        .select(
+          'user_text, created_at, mood, ai_plant_voice, topic_tags, emotion_tags',
+        )
         .order('created_at', ascending: false)
         .limit(limit);
     return (rows as List).map((m) {
@@ -296,31 +357,34 @@ class GardenService {
   }
 
   /// 식물을 정원 자유 위치에 심기 (정규화 좌표 0..1).
-  Future<void> place(String plantId, {required double x, required double y}) async {
-    await _client.from('plants').update({
-      'placed': true,
-      'pos_x': x,
-      'pos_y': y,
-      'pos_index': null,
-    }).eq('id', plantId);
+  Future<void> place(
+    String plantId, {
+    required double x,
+    required double y,
+  }) async {
+    await _client
+        .from('plants')
+        .update({'placed': true, 'pos_x': x, 'pos_y': y, 'pos_index': null})
+        .eq('id', plantId);
   }
 
   /// 정원에서 거두기 (모종함으로).
   Future<void> unplace(String plantId) async {
-    await _client.from('plants').update({
-      'placed': false,
-      'pos_index': null,
-      'pos_x': null,
-      'pos_y': null,
-    }).eq('id', plantId);
+    await _client
+        .from('plants')
+        .update({
+          'placed': false,
+          'pos_index': null,
+          'pos_x': null,
+          'pos_y': null,
+        })
+        .eq('id', plantId);
   }
 
   /// 테스트용: 현재 키우는 식물의 종류 변경 (화분류/나무 확인).
   Future<void> setActiveSpecies(String ownerId, String species) async {
     final p = await ensureActivePlant(ownerId);
-    await _client
-        .from('plants')
-        .update({'species': species}).eq('id', p.id);
+    await _client.from('plants').update({'species': species}).eq('id', p.id);
   }
 
   /// 식물에 이름 붙이기 (감정 챕터 이름). 빈 문자열이면 지움.
@@ -328,12 +392,26 @@ class GardenService {
     final trimmed = name.trim();
     await _client
         .from('plants')
-        .update({'name': trimmed.isEmpty ? null : trimmed}).eq('id', plantId);
+        .update({'name': trimmed.isEmpty ? null : trimmed})
+        .eq('id', plantId);
   }
 
   /// 정원 공개 여부 변경.
   Future<void> setPublic(String uid, bool isPublic) async {
-    await _client.from('profiles').update({'is_public': isPublic}).eq('id', uid);
+    await _client
+        .from('profiles')
+        .update({'is_public': isPublic})
+        .eq('id', uid);
+  }
+
+  /// 이 계정에 식물(정원 데이터)이 하나라도 있는지 — 복구 전 '기록이 사라질 수 있어요' 경고용.
+  Future<bool> hasAnyData(String ownerId) async {
+    final rows = await _client
+        .from('plants')
+        .select('id')
+        .eq('owner_id', ownerId)
+        .limit(1);
+    return (rows as List).isNotEmpty;
   }
 
   /// 내 모든 식물·기록 삭제 (plants 삭제 시 entries는 cascade).

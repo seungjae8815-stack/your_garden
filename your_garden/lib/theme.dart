@@ -27,10 +27,9 @@ ThemeData buildAppTheme() {
   );
 
   return base.copyWith(
-    textTheme: GoogleFonts.gowunDodumTextTheme(base.textTheme).apply(
-      bodyColor: AppColors.ink,
-      displayColor: AppColors.ink,
-    ),
+    textTheme: GoogleFonts.gowunDodumTextTheme(
+      base.textTheme,
+    ).apply(bodyColor: AppColors.ink, displayColor: AppColors.ink),
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,

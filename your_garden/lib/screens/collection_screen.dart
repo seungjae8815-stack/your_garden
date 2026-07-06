@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
+import '../widgets/load_error_view.dart';
 import '../widgets/plant_painter.dart';
 import 'collection_detail_screen.dart';
 
@@ -20,6 +21,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
   late final GardenService _garden = GardenService(Supabase.instance.client);
   List<Plant> _plants = const [];
   bool _loading = true;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -45,10 +47,14 @@ class _CollectionScreenState extends State<CollectionScreen> {
       setState(() {
         _plants = list;
         _loading = false;
+        _failed = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
     }
   }
 
@@ -61,7 +67,10 @@ class _CollectionScreenState extends State<CollectionScreen> {
       ),
       body: _loading
           ? const Center(
-              child: CircularProgressIndicator(color: AppColors.green))
+              child: CircularProgressIndicator(color: AppColors.green),
+            )
+          : _failed
+          ? LoadErrorView(onRetry: _load)
           : RefreshIndicator(
               onRefresh: _load,
               color: AppColors.green,
@@ -71,19 +80,19 @@ class _CollectionScreenState extends State<CollectionScreen> {
   }
 
   Widget _empty() => ListView(
-        children: const [
-          SizedBox(height: 140),
-          Icon(Icons.menu_book_outlined, size: 56, color: AppColors.faint),
-          SizedBox(height: 16),
-          Center(
-            child: Text(
-              '아직 완성한 식물이 없어요.\n마음을 묻으며 식물을 키워보세요.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.faint, height: 1.6),
-            ),
-          ),
-        ],
-      );
+    children: const [
+      SizedBox(height: 140),
+      Icon(Icons.menu_book_outlined, size: 56, color: AppColors.faint),
+      SizedBox(height: 16),
+      Center(
+        child: Text(
+          '아직 완성한 식물이 없어요.\n마음을 묻으며 식물을 키워보세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.faint, height: 1.6),
+        ),
+      ),
+    ],
+  );
 
   Widget _grid() {
     return Column(
@@ -92,8 +101,10 @@ class _CollectionScreenState extends State<CollectionScreen> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Text('모은 식물 ${_plants.length}그루',
-                style: const TextStyle(color: AppColors.sub, fontSize: 14)),
+            child: Text(
+              '모은 식물 ${_plants.length}그루',
+              style: const TextStyle(color: AppColors.sub, fontSize: 14),
+            ),
           ),
         ),
         Expanded(
@@ -112,40 +123,54 @@ class _CollectionScreenState extends State<CollectionScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => CollectionDetailScreen(plant: p)),
+                    builder: (_) => CollectionDetailScreen(plant: p),
+                  ),
                 ),
                 child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                ),
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: PlantSprite.hasAsset(p.species)
-                            ? PlantSprite(
-                                species: p.species, stage: 5, inPot: false)
-                            : CustomPaint(
-                                painter: PlantPainter(
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: PlantSprite.hasAsset(p.species)
+                              ? PlantSprite(
+                                  species: p.species,
+                                  stage: 5,
+                                  inPot: false,
+                                )
+                              : CustomPaint(
+                                  painter: PlantPainter(
                                     species: p.species,
                                     stage: 5,
-                                    inPot: !isGroundPlant(p.species)),
-                                size: Size.infinite),
+                                    inPot: !isGroundPlant(p.species),
+                                  ),
+                                  size: Size.infinite,
+                                ),
+                        ),
                       ),
-                    ),
-                    Text(speciesLabel(p.species),
+                      Text(
+                        speciesLabel(p.species),
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.faint)),
-                    Text(_date(p.startedAt),
+                          fontSize: 11,
+                          color: AppColors.faint,
+                        ),
+                      ),
+                      Text(
+                        _date(p.startedAt),
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.sub)),
-                  ],
+                          fontSize: 11,
+                          color: AppColors.sub,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               );
             },
           ),

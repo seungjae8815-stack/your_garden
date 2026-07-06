@@ -30,7 +30,9 @@ class NotificationService {
     if (_ready) return;
     tzdata.initializeTimeZones();
     try {
-      tz.setLocalLocation(tz.getLocation(await FlutterTimezone.getLocalTimezone()));
+      tz.setLocalLocation(
+        tz.getLocation(await FlutterTimezone.getLocalTimezone()),
+      );
     } catch (_) {
       tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
     }
@@ -50,9 +52,11 @@ class NotificationService {
   /// 권한 요청 + 예약. 성공하면 true.
   Future<bool> enable(int h, int m) async {
     await _ensureInit();
-    final granted = await _plugin
+    final granted =
+        await _plugin
             .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
+              AndroidFlutterLocalNotificationsPlugin
+            >()
             ?.requestNotificationsPermission() ??
         true;
     if (granted != true) return false;

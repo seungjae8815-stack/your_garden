@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,6 +13,7 @@ import '../widgets/plant_painter.dart';
 import 'input_screen.dart';
 import 'plant_detail_screen.dart';
 import 'reflection_screen.dart';
+import 'settings_screen.dart' show showBackupCodeDialog;
 import 'share_preview_screen.dart';
 
 /// (구버전) 고정 자리 — pos_x/pos_y 없는 옛 데이터의 위치 폴백용.
@@ -57,6 +59,8 @@ class GardenScreen extends StatefulWidget {
 
 class _GardenScreenState extends State<GardenScreen> {
   late final GardenService _garden = GardenService(Supabase.instance.client);
+  late final AuthService _auth = AuthService(Supabase.instance.client);
+  bool _nudgePrompted = false; // 이번 세션에 백업 넛지를 이미 띄웠는지
   Plant? _plant;
   List<Plant> _completed = const [];
   bool _loading = true;
@@ -72,8 +76,7 @@ class _GardenScreenState extends State<GardenScreen> {
 
   static const _skinAsset = 'assets/gardens/cottage_spring.png';
 
-  List<Plant> get _inventory =>
-      _completed.where((p) => !p.placed).toList();
+  List<Plant> get _inventory => _completed.where((p) => !p.placed).toList();
 
   // 정원에 심긴 식물들 — 아래쪽(앞)이 위로 그려지도록 y 오름차순 정렬.
   List<Plant> get _placedPlants {
@@ -141,6 +144,7 @@ class _GardenScreenState extends State<GardenScreen> {
         _checkedInToday = checkedIn;
         _loading = false;
       });
+      _maybePromptBackup();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -148,6 +152,129 @@ class _GardenScreenState extends State<GardenScreen> {
         _loading = false;
       });
     }
+  }
+
+  // 정원에 애착이 생긴(투자된) 사용자가 아직 백업을 안 했으면, 부드럽게 지켜두기를 권한다.
+  // 첫날의 보람은 방해하지 않도록 stage 3(≈여러 번 체크인) 이후, 며칠 간격으로만.
+  Future<void> _maybePromptBackup() async {
+    if (_nudgePrompted || !mounted) return;
+    final invested = (_plant?.stage ?? 1) >= 3 || _completed.isNotEmpty;
+    if (!invested) return;
+    if (await _auth.isProtected()) return;
+    final last = await _auth.backupNudgedAt();
+    if (last != null && DateTime.now().difference(last).inDays < 5) return;
+    _nudgePrompted = true;
+    await _auth.markBackupNudged();
+    if (!mounted) return;
+    _showBackupNudge();
+  }
+
+  void _showBackupNudge() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cream,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                '🌿',
+                style: TextStyle(fontSize: 34),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '이 정원을 지켜둘까요?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '지금까지 묻은 마음은 이 기기에만 있어요. '
+                '기기를 바꾸거나 앱을 지우면 정원이 사라질 수 있어요. '
+                '지금 지켜두면 언제든 되찾을 수 있어요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.6,
+                  color: AppColors.sub,
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () => _nudgeGoogle(sheetCtx),
+                icon: const Icon(Icons.account_circle_outlined),
+                label: const Text('Google로 지키기'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                onPressed: () => _nudgeCode(sheetCtx),
+                icon: const Icon(Icons.vpn_key_outlined, color: AppColors.sub),
+                label: const Text(
+                  '복구 코드로 지키기',
+                  style: TextStyle(color: AppColors.ink),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetCtx),
+                child: const Text(
+                  '나중에',
+                  style: TextStyle(color: AppColors.faint),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _nudgeGoogle(BuildContext sheetCtx) async {
+    Navigator.pop(sheetCtx);
+    try {
+      await _auth.linkGoogle();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Google 연결을 시작하지 못했어요: $e')));
+    }
+  }
+
+  Future<void> _nudgeCode(BuildContext sheetCtx) async {
+    Navigator.pop(sheetCtx);
+    String code;
+    try {
+      code = await _auth.createBackup();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('복구 코드를 만들지 못했어요: $e')));
+      return;
+    }
+    if (!mounted) return;
+    await showBackupCodeDialog(context, code);
   }
 
   // 오늘의 마음 묻기 (매일 체크인) — 식물 상세를 거치지 않고 바로.
@@ -178,21 +305,28 @@ class _GardenScreenState extends State<GardenScreen> {
               borderRadius: BorderRadius.circular(30),
               boxShadow: const [
                 BoxShadow(
-                    color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3)),
+                  color: Color(0x33000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
               ],
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(done ? '🌿' : '🌱', style: const TextStyle(fontSize: 17)),
-              const SizedBox(width: 8),
-              Text(
-                done ? '오늘의 마음을 묻었어요' : '오늘의 마음 묻기',
-                style: TextStyle(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(done ? '🌿' : '🌱', style: const TextStyle(fontSize: 17)),
+                const SizedBox(width: 8),
+                Text(
+                  done ? '오늘의 마음을 묻었어요' : '오늘의 마음 묻기',
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.3,
-                    color: done ? AppColors.green : Colors.white),
-              ),
-            ]),
+                    color: done ? AppColors.green : Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -277,9 +411,10 @@ class _GardenScreenState extends State<GardenScreen> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               boxShadow: [
                 BoxShadow(
-                    color: Color(0x33000000),
-                    blurRadius: 12,
-                    offset: Offset(0, -2)),
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, -2),
+                ),
               ],
             ),
             child: SafeArea(
@@ -293,16 +428,22 @@ class _GardenScreenState extends State<GardenScreen> {
                     Row(
                       children: [
                         const Expanded(
-                          child: Text('모종함 — 끌어다 정원에 심어요 🌱',
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.ink)),
+                          child: Text(
+                            '모종함 — 끌어다 정원에 심어요 🌱',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
                         ),
                         GestureDetector(
                           onTap: () => setState(() => _planting = false),
-                          child: const Icon(Icons.close,
-                              size: 20, color: AppColors.sub),
+                          child: const Icon(
+                            Icons.close,
+                            size: 20,
+                            color: AppColors.sub,
+                          ),
                         ),
                       ],
                     ),
@@ -311,8 +452,11 @@ class _GardenScreenState extends State<GardenScreen> {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Center(
-                            child: Text('아직 심을 식물이 없어요',
-                                style: TextStyle(color: AppColors.faint))),
+                          child: Text(
+                            '아직 심을 식물이 없어요',
+                            style: TextStyle(color: AppColors.faint),
+                          ),
+                        ),
                       )
                     else
                       SizedBox(
@@ -347,12 +491,15 @@ class _GardenScreenState extends State<GardenScreen> {
         children: [
           Expanded(
             child: PlantSprite(
-                species: p.species,
-                stage: 5,
-                inPot: !isGroundPlant(p.species)),
+              species: p.species,
+              stage: 5,
+              inPot: !isGroundPlant(p.species),
+            ),
           ),
-          Text(speciesLabel(p.species),
-              style: const TextStyle(fontSize: 11, color: AppColors.sub)),
+          Text(
+            speciesLabel(p.species),
+            style: const TextStyle(fontSize: 11, color: AppColors.sub),
+          ),
         ],
       ),
     );
@@ -397,22 +544,27 @@ class _GardenScreenState extends State<GardenScreen> {
                 SafeArea(
                   child: _loading
                       ? const Center(
-                          child:
-                              CircularProgressIndicator(color: AppColors.green))
+                          child: CircularProgressIndicator(
+                            color: AppColors.green,
+                          ),
+                        )
                       : _error != null
-                          ? _errorView()
-                          : _bodyScene(),
+                      ? _errorView()
+                      : _bodyScene(),
                 ),
                 // 구름은 식물보다 앞 — 언덕 위 작은 식물이 구름을 뚫지 않게.
                 if (!_night)
                   const Positioned.fill(
-                      child: IgnorePointer(child: _CloudLayer())),
+                    child: IgnorePointer(child: _CloudLayer()),
+                  ),
                 if (_night) const IgnorePointer(child: _NightOverlay()),
                 if (!_loading && _error == null)
                   Positioned.fill(
                     child: SafeArea(
                       child: GardenCritters(
-                          key: ValueKey(_night), night: _night),
+                        key: ValueKey(_night),
+                        night: _night,
+                      ),
                     ),
                   ),
               ],
@@ -441,69 +593,85 @@ class _GardenScreenState extends State<GardenScreen> {
   }
 
   Widget _errorView() => Center(
-        child: Container(
-          margin: const EdgeInsets.all(32),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-              color: AppColors.card, borderRadius: BorderRadius.circular(16)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('정원을 불러오지 못했어요\n$_error',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
-            const SizedBox(height: 16),
-            OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
-          ]),
-        ),
-      );
+    child: Container(
+      margin: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '정원을 불러오지 못했어요\n$_error',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
+        ],
+      ),
+    ),
+  );
 
   Widget _topBar() => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 16, 0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.profile.gardenName ?? '너의 정원',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 20,
-                          color: _night ? Colors.white : AppColors.ink,
-                          letterSpacing: 1.5,
-                          fontWeight: FontWeight.w600)),
-                  Text(widget.profile.nickname,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: _night ? Colors.white70 : AppColors.sub)),
-                ],
+    padding: const EdgeInsets.fromLTRB(20, 12, 16, 0),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.profile.gardenName ?? '너의 정원',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 20,
+                  color: _night ? Colors.white : AppColors.ink,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            _shareButton(),
-            const SizedBox(width: 8),
-            _dayNightButton(),
-            const SizedBox(width: 8),
-            _inventoryChip(),
-          ],
-        ),
-      );
-
-  Widget _shareButton() => GestureDetector(
-        onTap: _shareGarden,
-        child: Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.9),
-            shape: BoxShape.circle,
-            boxShadow: const [
-              BoxShadow(
-                  color: Color(0x22000000), blurRadius: 5, offset: Offset(0, 2)),
+              Text(
+                widget.profile.nickname,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _night ? Colors.white70 : AppColors.sub,
+                ),
+              ),
             ],
           ),
-          child: const Icon(Icons.ios_share, size: 18, color: AppColors.sub),
         ),
-      );
+        _shareButton(),
+        const SizedBox(width: 8),
+        // 밤낮 토글은 테스트용 — 릴리스에선 숨김(실서비스는 폰 시계 연동 예정)
+        if (kDebugMode) ...[_dayNightButton(), const SizedBox(width: 8)],
+        _inventoryChip(),
+      ],
+    ),
+  );
+
+  Widget _shareButton() => GestureDetector(
+    onTap: _shareGarden,
+    child: Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        shape: BoxShape.circle,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 5,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.ios_share, size: 18, color: AppColors.sub),
+    ),
+  );
 
   Future<void> _shareGarden() async {
     final bytes = await captureBoundary(_shareKey, pixelRatio: 2.5);
@@ -512,13 +680,14 @@ class _GardenScreenState extends State<GardenScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => SharePreviewScreen(
-            imageBytes: bytes, nickname: widget.profile.nickname),
+          imageBytes: bytes,
+          nickname: widget.profile.nickname,
+        ),
       ),
     );
   }
 
-  Widget _bodyScene() =>
-      LayoutBuilder(builder: (context, c) => _garden3d(c));
+  Widget _bodyScene() => LayoutBuilder(builder: (context, c) => _garden3d(c));
 
   Widget _dayNightButton() {
     return GestureDetector(
@@ -529,11 +698,18 @@ class _GardenScreenState extends State<GardenScreen> {
           color: Colors.white.withValues(alpha: 0.9),
           shape: BoxShape.circle,
           boxShadow: const [
-            BoxShadow(color: Color(0x22000000), blurRadius: 5, offset: Offset(0, 2)),
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
           ],
         ),
-        child: Icon(_night ? Icons.dark_mode : Icons.wb_sunny_outlined,
-            size: 18, color: AppColors.sub),
+        child: Icon(
+          _night ? Icons.dark_mode : Icons.wb_sunny_outlined,
+          size: 18,
+          color: AppColors.sub,
+        ),
       ),
     );
   }
@@ -556,35 +732,47 @@ class _GardenScreenState extends State<GardenScreen> {
               onTap: () => setState(() => _planting = !_planting),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: hot
                       ? AppColors.greenDark
                       : active
-                          ? AppColors.green
-                          : Colors.white.withValues(alpha: 0.9),
+                      ? AppColors.green
+                      : Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(18),
                   border: dragging
                       ? Border.all(color: Colors.white, width: 2)
                       : null,
                   boxShadow: const [
                     BoxShadow(
-                        color: Color(0x22000000),
-                        blurRadius: 5,
-                        offset: Offset(0, 2)),
+                      color: Color(0x22000000),
+                      blurRadius: 5,
+                      offset: Offset(0, 2),
+                    ),
                   ],
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.inventory_2_outlined,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
                       size: 16,
-                      color: (active || hot) ? Colors.white : AppColors.sub),
-                  const SizedBox(width: 6),
-                  Text('모종함 $n',
+                      color: (active || hot) ? Colors.white : AppColors.sub,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '모종함 $n',
                       style: TextStyle(
-                          fontSize: 13,
-                          color: fg,
-                          fontWeight: FontWeight.w600)),
-                ]),
+                        fontSize: 13,
+                        color: fg,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -598,11 +786,14 @@ class _GardenScreenState extends State<GardenScreen> {
               color: AppColors.ink.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text('여기로 끌어 모종함으로 넣기',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600)),
+            child: const Text(
+              '여기로 끌어 모종함으로 넣기',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ],
@@ -624,76 +815,80 @@ class _GardenScreenState extends State<GardenScreen> {
       final scale = _perspScale(foot.dy);
       final iw = (isTree ? 108.0 : 72.0) * scale;
       final ih = (isTree ? 140.0 : 94.0) * scale;
-      children.add(Positioned(
-        left: foot.dx * w - iw / 2,
-        top: foot.dy * h - ih,
-        width: iw,
-        height: ih,
-        child: LongPressDraggable<Plant>(
-          data: p,
-          feedback: _dragFeedback(p),
-          childWhenDragging: const SizedBox.shrink(),
-          onDragStarted: () => setState(() => _dragSource = _DragSrc.placed),
-          onDragEnd: (_) => setState(() => _dragSource = _DragSrc.none),
-          child: _PlacedPlant(plant: p),
+      children.add(
+        Positioned(
+          left: foot.dx * w - iw / 2,
+          top: foot.dy * h - ih,
+          width: iw,
+          height: ih,
+          child: LongPressDraggable<Plant>(
+            data: p,
+            feedback: _dragFeedback(p),
+            childWhenDragging: const SizedBox.shrink(),
+            onDragStarted: () => setState(() => _dragSource = _DragSrc.placed),
+            onDragEnd: (_) => setState(() => _dragSource = _DragSrc.none),
+            child: _PlacedPlant(plant: p),
+          ),
         ),
-      ));
+      );
     }
 
     // 오늘 키우는 식물 (중앙-앞, 받침대/흙)
     const gw = 200.0;
     final groundY = h * 0.72; // 식물 바닥이 닿는 지면선
-    children.add(Positioned(
-      left: w * 0.5 - gw / 2,
-      bottom: h - groundY,
-      width: gw,
-      child: GestureDetector(
-        onTap: _openDetail,
-        behavior: HitTestBehavior.opaque,
-        child: isGroundPlant(plant.species)
-            ? _treeOnSoil(plant)
-            : _potOnStand(plant),
+    children.add(
+      Positioned(
+        left: w * 0.5 - gw / 2,
+        bottom: h - groundY,
+        width: gw,
+        child: GestureDetector(
+          onTap: _openDetail,
+          behavior: HitTestBehavior.opaque,
+          child: isGroundPlant(plant.species)
+              ? _treeOnSoil(plant)
+              : _potOnStand(plant),
+        ),
       ),
-    ));
+    );
 
     // 정원 전체가 드롭 대상 — 모종을 떨어뜨린 위치에 심긴다.
     return DragTarget<Plant>(
       onAcceptWithDetails: (d) => _onDropPlant(d.data, d.offset),
-      builder: (ctx, cand, rej) => Stack(
-        key: _canvasKey,
-        clipBehavior: Clip.none,
-        children: children,
-      ),
+      builder: (ctx, cand, rej) =>
+          Stack(key: _canvasKey, clipBehavior: Clip.none, children: children),
     );
   }
 
   Widget _potOnStand(Plant p) => SizedBox(
-        width: 130,
-        height: 320,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          clipBehavior: Clip.none,
-          children: [
-            // 받침대
-            Image.asset('assets/gardens/stand.png', width: 86),
-            // 화분 (받침대 윗면)
-            Positioned(
-              bottom: 92,
-              child: Image.asset('assets/gardens/pot.png', width: 72),
-            ),
-            // 식물 잎/꽃 (화분 흙에서 올라옴, 화분 없이). 단계에 따라 커짐.
-            Positioned(
-              bottom: 158,
-              child: SizedBox(
-                width: 130,
-                height: 150 * PlantSprite.heightFactor(p.species, p.stage),
-                child: PlantSprite(
-                    species: p.species, stage: p.stage, inPot: false),
-              ),
-            ),
-          ],
+    width: 130,
+    height: 320,
+    child: Stack(
+      alignment: Alignment.bottomCenter,
+      clipBehavior: Clip.none,
+      children: [
+        // 받침대
+        Image.asset('assets/gardens/stand.png', width: 86),
+        // 화분 (받침대 윗면)
+        Positioned(
+          bottom: 92,
+          child: Image.asset('assets/gardens/pot.png', width: 72),
         ),
-      );
+        // 식물 잎/꽃 (화분 흙에서 올라옴, 화분 없이). 단계에 따라 커짐.
+        Positioned(
+          bottom: 158,
+          child: SizedBox(
+            width: 130,
+            height: 150 * PlantSprite.heightFactor(p.species, p.stage),
+            child: PlantSprite(
+              species: p.species,
+              stage: p.stage,
+              inPot: false,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _treeOnSoil(Plant p) {
     final hf = PlantSprite.heightFactor(p.species, p.stage);
@@ -722,9 +917,14 @@ class _NightOverlayState extends State<_NightOverlay>
   )..repeat();
 
   static const _stars = [
-    Offset(0.16, 0.14), Offset(0.50, 0.09), Offset(0.80, 0.18),
-    Offset(0.32, 0.24), Offset(0.66, 0.28), Offset(0.88, 0.11),
-    Offset(0.24, 0.33), Offset(0.58, 0.16),
+    Offset(0.16, 0.14),
+    Offset(0.50, 0.09),
+    Offset(0.80, 0.18),
+    Offset(0.32, 0.24),
+    Offset(0.66, 0.28),
+    Offset(0.88, 0.11),
+    Offset(0.24, 0.33),
+    Offset(0.58, 0.16),
   ];
 
   @override
@@ -735,57 +935,65 @@ class _NightOverlayState extends State<_NightOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      final w = box.maxWidth;
-      final h = box.maxHeight;
-      return AnimatedBuilder(
-        animation: _c,
-        builder: (_, _) {
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: Color(0x593A4A7A)),
-              Positioned(
-                top: h * 0.05,
-                left: w * 0.10,
-                child: Container(
-                  width: w * 0.22,
-                  height: w * 0.22,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final h = box.maxHeight;
+        return AnimatedBuilder(
+          animation: _c,
+          builder: (_, _) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                const ColoredBox(color: Color(0x593A4A7A)),
+                Positioned(
+                  top: h * 0.05,
+                  left: w * 0.10,
+                  child: Container(
+                    width: w * 0.22,
+                    height: w * 0.22,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
                           color: Color(0x55FFE9A8),
                           blurRadius: 38,
-                          spreadRadius: 14),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset('assets/gardens/moon.png',
-                        fit: BoxFit.cover),
-                  ),
-                ),
-              ),
-              for (var i = 0; i < _stars.length; i++)
-                Positioned(
-                  left: _stars[i].dx * w,
-                  top: _stars[i].dy * h,
-                  child: Opacity(
-                    opacity: 0.25 +
-                        0.7 *
-                            (0.5 +
-                                0.5 *
-                                    math.sin(2 *
-                                        math.pi *
-                                        (_c.value + i / _stars.length))),
-                    child: const _Star(),
+                          spreadRadius: 14,
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/gardens/moon.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
-            ],
-          );
-        },
-      );
-    });
+                for (var i = 0; i < _stars.length; i++)
+                  Positioned(
+                    left: _stars[i].dx * w,
+                    top: _stars[i].dy * h,
+                    child: Opacity(
+                      opacity:
+                          0.25 +
+                          0.7 *
+                              (0.5 +
+                                  0.5 *
+                                      math.sin(
+                                        2 *
+                                            math.pi *
+                                            (_c.value + i / _stars.length),
+                                      )),
+                      child: const _Star(),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }
 
@@ -793,14 +1001,14 @@ class _Star extends StatelessWidget {
   const _Star();
   @override
   Widget build(BuildContext context) => Container(
-        width: 6,
-        height: 6,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Colors.white, blurRadius: 4)],
-        ),
-      );
+    width: 6,
+    height: 6,
+    decoration: const BoxDecoration(
+      color: Colors.white,
+      shape: BoxShape.circle,
+      boxShadow: [BoxShadow(color: Colors.white, blurRadius: 4)],
+    ),
+  );
 }
 
 /// 낮 하늘에 천천히 흐르는 구름.
@@ -825,24 +1033,32 @@ class _CloudLayerState extends State<_CloudLayer>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      final w = box.maxWidth;
-      final h = box.maxHeight;
-      return AnimatedBuilder(
-        animation: _c,
-        builder: (_, _) => Stack(
-          children: [
-            _cloud('assets/gardens/cloud1.png', 132, h * 0.08, 0.0, 1.0, w),
-            _cloud('assets/gardens/cloud2.png', 168, h * 0.17, 0.45, 0.72, w),
-            _cloud('assets/gardens/cloud3.png', 112, h * 0.04, 0.78, 1.25, w),
-          ],
-        ),
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final h = box.maxHeight;
+        return AnimatedBuilder(
+          animation: _c,
+          builder: (_, _) => Stack(
+            children: [
+              _cloud('assets/gardens/cloud1.png', 132, h * 0.08, 0.0, 1.0, w),
+              _cloud('assets/gardens/cloud2.png', 168, h * 0.17, 0.45, 0.72, w),
+              _cloud('assets/gardens/cloud3.png', 112, h * 0.04, 0.78, 1.25, w),
+            ],
+          ),
+        );
+      },
+    );
   }
 
-  Widget _cloud(String asset, double cw, double y, double phase, double speed,
-      double w) {
+  Widget _cloud(
+    String asset,
+    double cw,
+    double y,
+    double phase,
+    double speed,
+    double w,
+  ) {
     final p = (_c.value * speed + phase) % 1.0;
     final x = p * (w + cw) - cw;
     return Positioned(
@@ -863,5 +1079,3 @@ class _PlacedPlant extends StatelessWidget {
   Widget build(BuildContext context) =>
       PlantSprite(species: plant.species, stage: 5, inPot: false);
 }
-
-

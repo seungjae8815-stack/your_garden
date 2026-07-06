@@ -89,8 +89,11 @@ final Random _promptRng = Random();
 /// 오늘 날짜에 해당하는 질문 (하루 동안 고정).
 String todaysPrompt([DateTime? now]) {
   final d = (now ?? DateTime.now()).toLocal();
-  final dayIndex =
-      DateTime(d.year, d.month, d.day).difference(DateTime(2000)).inDays;
+  final dayIndex = DateTime(
+    d.year,
+    d.month,
+    d.day,
+  ).difference(DateTime(2000)).inDays;
   return kDailyPrompts[dayIndex % kDailyPrompts.length];
 }
 

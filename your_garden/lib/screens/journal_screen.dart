@@ -5,6 +5,7 @@ import '../data/tags.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
+import '../widgets/load_error_view.dart';
 import '../widgets/mood_icon.dart';
 import 'insights_screen.dart';
 import 'year_pixels_screen.dart';
@@ -22,6 +23,7 @@ class _JournalScreenState extends State<JournalScreen> {
   late final GardenService _garden = GardenService(Supabase.instance.client);
   final Map<String, List<EntryRecord>> _byDay = {};
   bool _loading = true;
+  bool _failed = false;
 
   late DateTime _month; // 표시 중인 달 (1일)
   late DateTime _selected; // 선택한 날
@@ -59,10 +61,16 @@ class _JournalScreenState extends State<JournalScreen> {
         (_byDay[_key(DateTime(l.year, l.month, l.day))] ??= []).add(e);
       }
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = false;
+      });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
     }
   }
 
@@ -89,7 +97,8 @@ class _JournalScreenState extends State<JournalScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) => InsightsScreen(profile: widget.profile)),
+                builder: (_) => InsightsScreen(profile: widget.profile),
+              ),
             ),
           ),
           IconButton(
@@ -98,13 +107,18 @@ class _JournalScreenState extends State<JournalScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) => YearPixelsScreen(profile: widget.profile)),
+                builder: (_) => YearPixelsScreen(profile: widget.profile),
+              ),
             ),
           ),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.green))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.green),
+            )
+          : _failed
+          ? LoadErrorView(onRetry: _load)
           : Column(
               children: [
                 _monthHeader(),
@@ -126,17 +140,22 @@ class _JournalScreenState extends State<JournalScreen> {
           IconButton(
             icon: const Icon(Icons.chevron_left, color: AppColors.sub),
             onPressed: () => setState(
-                () => _month = DateTime(_month.year, _month.month - 1)),
+              () => _month = DateTime(_month.year, _month.month - 1),
+            ),
           ),
-          Text('${_month.year}.${_month.month.toString().padLeft(2, '0')}',
-              style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink)),
+          Text(
+            '${_month.year}.${_month.month.toString().padLeft(2, '0')}',
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.chevron_right, color: AppColors.sub),
             onPressed: () => setState(
-                () => _month = DateTime(_month.year, _month.month + 1)),
+              () => _month = DateTime(_month.year, _month.month + 1),
+            ),
           ),
         ],
       ),
@@ -151,12 +170,13 @@ class _JournalScreenState extends State<JournalScreen> {
           for (var i = 0; i < 7; i++)
             Expanded(
               child: Center(
-                child: Text(_weekdays[i],
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: i == 0
-                            ? const Color(0xFFD08770)
-                            : AppColors.faint)),
+                child: Text(
+                  _weekdays[i],
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: i == 0 ? const Color(0xFFD08770) : AppColors.faint,
+                  ),
+                ),
               ),
             ),
         ],
@@ -178,41 +198,44 @@ class _JournalScreenState extends State<JournalScreen> {
       final mood = _moodOfDay(date);
       final selected = _key(date) == _key(_selected);
       final isToday = _key(date) == _key(today);
-      cells.add(GestureDetector(
-        onTap: () => setState(() => _selected = date),
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFFDCEFC4) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: isToday
-                ? Border.all(color: AppColors.green, width: 1.5)
-                : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('$day',
+      cells.add(
+        GestureDetector(
+          onTap: () => setState(() => _selected = date),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFFDCEFC4) : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: isToday
+                  ? Border.all(color: AppColors.green, width: 1.5)
+                  : null,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$day',
                   style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.sub,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w400)),
-              const SizedBox(height: 2),
-              SizedBox(
-                height: 30,
-                child: mood != null
-                    ? MoodIcon(value: mood, size: 30)
-                    : has
-                        ? const Icon(Icons.eco,
-                            size: 15, color: AppColors.green)
-                        : null,
-              ),
-            ],
+                    fontSize: 11,
+                    color: AppColors.sub,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                SizedBox(
+                  height: 30,
+                  child: mood != null
+                      ? MoodIcon(value: mood, size: 30)
+                      : has
+                      ? const Icon(Icons.eco, size: 15, color: AppColors.green)
+                      : null,
+                ),
+              ],
+            ),
           ),
         ),
-      ));
+      );
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -235,17 +258,22 @@ class _JournalScreenState extends State<JournalScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-          child: Text(title,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink)),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
+          ),
         ),
         Expanded(
           child: list.isEmpty
               ? const Center(
-                  child: Text('이 날의 기록이 없어요',
-                      style: TextStyle(color: AppColors.faint)),
+                  child: Text(
+                    '이 날의 기록이 없어요',
+                    style: TextStyle(color: AppColors.faint),
+                  ),
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -266,8 +294,10 @@ class _JournalScreenState extends State<JournalScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFDCEFC4)),
       ),
-      child: Text('${t.emoji} ${t.label}',
-          style: const TextStyle(fontSize: 11, color: AppColors.greenDark)),
+      child: Text(
+        '${t.emoji} ${t.label}',
+        style: const TextStyle(fontSize: 11, color: AppColors.greenDark),
+      ),
     );
   }
 
@@ -290,19 +320,21 @@ class _JournalScreenState extends State<JournalScreen> {
                 MoodIcon(value: e.mood!, size: 18),
                 const SizedBox(width: 6),
               ],
-              Text('${two(l.hour)}:${two(l.minute)}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.faint)),
+              Text(
+                '${two(l.hour)}:${two(l.minute)}',
+                style: const TextStyle(fontSize: 11, color: AppColors.faint),
+              ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
             e.text.isEmpty ? '오늘의 마음 날씨를 남겼어요' : e.text,
             style: TextStyle(
-                fontSize: 15,
-                height: 1.5,
-                fontStyle:
-                    e.text.isEmpty ? FontStyle.italic : FontStyle.normal,
-                color: e.text.isEmpty ? AppColors.faint : AppColors.ink),
+              fontSize: 15,
+              height: 1.5,
+              fontStyle: e.text.isEmpty ? FontStyle.italic : FontStyle.normal,
+              color: e.text.isEmpty ? AppColors.faint : AppColors.ink,
+            ),
           ),
           if (e.topicTags.isNotEmpty || e.emotionTags.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -332,11 +364,14 @@ class _JournalScreenState extends State<JournalScreen> {
                   const Text('🌿', style: TextStyle(fontSize: 14)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(e.reply,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
-                            color: AppColors.greenDark)),
+                    child: Text(
+                      e.reply,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: AppColors.greenDark,
+                      ),
+                    ),
                   ),
                 ],
               ),

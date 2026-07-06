@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/daily_prompts.dart';
 import '../data/tags.dart';
 import '../services/crisis.dart';
+import '../services/draft_service.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
 import '../widgets/mood_icon.dart';
@@ -18,12 +21,14 @@ class InputScreen extends StatefulWidget {
   State<InputScreen> createState() => _InputScreenState();
 }
 
-class _InputScreenState extends State<InputScreen>
-    with WidgetsBindingObserver {
+class _InputScreenState extends State<InputScreen> with WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focus = FocusNode();
   final GlobalKey _fieldKey = GlobalKey(); // 입력칸 묶음 — 포커스 시 상단으로 스크롤
   late final GardenService _garden = GardenService(Supabase.instance.client);
+  final DraftService _drafts = DraftService();
+  Timer? _saveTimer; // 초안 자동 저장 디바운스
+  bool _submitted = false; // 제출 성공(초안 삭제됨) — 이탈 시 재저장 방지
   String _prompt = todaysPrompt();
   int? _mood; // 선택한 기분 1..5
   final Set<String> _topics = {}; // 주제(양분) 태그 키
@@ -40,6 +45,7 @@ class _InputScreenState extends State<InputScreen>
     _focus.addListener(() {
       if (_focus.hasFocus) _scrollFieldToTop();
     });
+    _restoreDraft();
   }
 
   // 자판 높이가 바뀔 때(올라올 때)마다 호출 — 이때 스크롤하면 타이밍이 정확.
@@ -48,20 +54,85 @@ class _InputScreenState extends State<InputScreen>
     if (_focus.hasFocus) _scrollFieldToTop();
   }
 
+  // 앱이 백그라운드로 갈 때 — 쓰던 글을 즉시 안전하게 보관(강제 종료 대비).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _saveTimer?.cancel();
+      _saveDraft();
+    }
+  }
+
+  // 지난번 쓰다 만 초안이 있으면(같은 식물) 되살린다.
+  Future<void> _restoreDraft() async {
+    final d = await _drafts.load();
+    if (d == null || !mounted) return;
+    if (d.plantId != widget.plant.id || d.isEmpty) {
+      // 다른 식물(거둔 뒤 새 식물 등)의 오래된 초안은 정리.
+      if (d.plantId != widget.plant.id) await _drafts.clear();
+      return;
+    }
+    setState(() {
+      _controller.text = d.text;
+      _mood = d.mood;
+      _topics
+        ..clear()
+        ..addAll(d.topics);
+      _emotions
+        ..clear()
+        ..addAll(d.emotions);
+    });
+    if (d.text.trim().isNotEmpty && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('지난번 쓰던 글을 불러왔어요.')));
+    }
+  }
+
+  // 변경이 있을 때마다 짧게 미뤄 저장(과도한 쓰기 방지).
+  void _scheduleSaveDraft() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 500), _saveDraft);
+  }
+
+  // 현재 입력 상태를 초안으로 저장(내용이 없으면 삭제).
+  Future<void> _saveDraft() async {
+    if (_submitted) return;
+    final d = EntryDraft(
+      plantId: widget.plant.id,
+      text: _controller.text,
+      mood: _mood,
+      topics: _topics.toList(),
+      emotions: _emotions.toList(),
+    );
+    if (d.isEmpty) {
+      await _drafts.clear();
+    } else {
+      await _drafts.save(d);
+    }
+  }
+
   // 입력칸 묶음(안내+칸)을 화면 상단으로 끌어올린다.
   void _scrollFieldToTop() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _fieldKey.currentContext;
       if (ctx == null || !ctx.mounted) return;
-      Scrollable.ensureVisible(ctx,
-          alignment: 0.0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut);
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
     });
   }
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
+    // 제출 성공 전에 화면을 나가면(뒤로가기 등) 쓰던 글을 남겨둔다.
+    // _controller.text를 dispose 전에 동기적으로 읽어 보관.
+    if (!_submitted) _saveDraft();
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _focus.dispose();
@@ -87,16 +158,25 @@ class _InputScreenState extends State<InputScreen>
         topicTags: _topics.toList(),
         emotionTags: _emotions.toList(),
       );
+      _submitted = true;
+      _saveTimer?.cancel();
+      await _drafts.clear(); // 무사히 묻었으니 초안 삭제
       markGardenDirty(); // 달력·도감 즉시 갱신
       if (!mounted) return;
       await _showPlanted(result.reply);
       if (!mounted) return;
       Navigator.pop(context, result);
     } catch (e) {
+      // 전송 실패(오프라인 등) — 쓴 글을 잃지 않도록 초안으로 확실히 보관.
+      _saveTimer?.cancel();
+      await _saveDraft();
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('묻기에 실패했어요: $e')),
+        const SnackBar(
+          content: Text('지금은 묻지 못했어요. 쓴 글은 저장해뒀어요 — 연결되면 다시 시도해 주세요.'),
+          duration: Duration(seconds: 4),
+        ),
       );
     }
   }
@@ -133,7 +213,10 @@ class _InputScreenState extends State<InputScreen>
                 reply,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                    fontSize: 15, height: 1.55, color: Color(0xFF5D4037)),
+                  fontSize: 15,
+                  height: 1.55,
+                  color: Color(0xFF5D4037),
+                ),
               ),
             ),
           ],
@@ -158,7 +241,10 @@ class _InputScreenState extends State<InputScreen>
         title: const Text(
           '오늘의 마음',
           style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF5D4037)),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF5D4037),
+          ),
         ),
       ),
       body: SafeArea(
@@ -178,18 +264,25 @@ class _InputScreenState extends State<InputScreen>
                     disabledForegroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28)),
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                   ),
                   child: _submitting
                       ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Text('흙에 묻기',
+                      : const Text(
+                          '흙에 묻기',
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -211,8 +304,10 @@ class _InputScreenState extends State<InputScreen>
         children: [
           _questionCard(),
           const SizedBox(height: 18),
-          const Text('지금 마음 날씨는 어떤가요?',
-              style: TextStyle(fontSize: 13, color: Color(0xFFA1887F))),
+          const Text(
+            '지금 마음 날씨는 어떤가요?',
+            style: TextStyle(fontSize: 13, color: Color(0xFFA1887F)),
+          ),
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -223,8 +318,10 @@ class _InputScreenState extends State<InputScreen>
             key: _fieldKey,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('아무에게도 보이지 않아요. 천천히 내려놓으세요. (선택)',
-                  style: TextStyle(fontSize: 13, color: Color(0xFFA1887F))),
+              const Text(
+                '아무에게도 보이지 않아요. 천천히 내려놓으세요. (선택)',
+                style: TextStyle(fontSize: 13, color: Color(0xFFA1887F)),
+              ),
               const SizedBox(height: 10),
               SizedBox(height: 220, child: _field()),
             ],
@@ -243,8 +340,10 @@ class _InputScreenState extends State<InputScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(fontSize: 13, color: Color(0xFFA1887F))),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: Color(0xFFA1887F)),
+        ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -260,9 +359,12 @@ class _InputScreenState extends State<InputScreen>
     return GestureDetector(
       onTap: _submitting
           ? null
-          : () => setState(() {
+          : () {
+              setState(() {
                 on ? selected.remove(t.key) : selected.add(t.key);
-              }),
+              });
+              _scheduleSaveDraft();
+            },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -279,11 +381,14 @@ class _InputScreenState extends State<InputScreen>
           children: [
             Text(t.emoji, style: const TextStyle(fontSize: 14)),
             const SizedBox(width: 5),
-            Text(t.label,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: on ? AppColors.greenDark : const Color(0xFF8D6E63),
-                    fontWeight: on ? FontWeight.w700 : FontWeight.w400)),
+            Text(
+              t.label,
+              style: TextStyle(
+                fontSize: 13,
+                color: on ? AppColors.greenDark : const Color(0xFF8D6E63),
+                fontWeight: on ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
           ],
         ),
       ),
@@ -304,11 +409,14 @@ class _InputScreenState extends State<InputScreen>
         children: [
           Row(
             children: [
-              const Text('오늘의 질문',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.green)),
+              const Text(
+                '오늘의 질문',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.green,
+                ),
+              ),
               const Spacer(),
               if (_mood != null) ...[
                 MoodIcon(value: _mood!, size: 16),
@@ -321,24 +429,34 @@ class _InputScreenState extends State<InputScreen>
                 borderRadius: BorderRadius.circular(20),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.refresh, size: 15, color: Color(0xFFA1887F)),
-                    SizedBox(width: 3),
-                    Text('다른 질문',
-                        style:
-                            TextStyle(fontSize: 12, color: Color(0xFFA1887F))),
-                  ]),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh, size: 15, color: Color(0xFFA1887F)),
+                      SizedBox(width: 3),
+                      Text(
+                        '다른 질문',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFA1887F),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(_prompt,
-              style: const TextStyle(
-                  fontSize: 16.5,
-                  height: 1.45,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF5D4037))),
+          Text(
+            _prompt,
+            style: const TextStyle(
+              fontSize: 16.5,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF5D4037),
+            ),
+          ),
         ],
       ),
     );
@@ -353,8 +471,15 @@ class _InputScreenState extends State<InputScreen>
       maxLength: 500,
       textAlignVertical: TextAlignVertical.top,
       enabled: !_submitting,
-      onChanged: (_) => setState(() {}),
-      style: const TextStyle(fontSize: 16, height: 1.6, color: Color(0xFF5D4037)),
+      onChanged: (_) {
+        setState(() {});
+        _scheduleSaveDraft();
+      },
+      style: const TextStyle(
+        fontSize: 16,
+        height: 1.6,
+        color: Color(0xFF5D4037),
+      ),
       decoration: const InputDecoration(
         hintText: '떠오르는 대로 적어보세요…',
         hintStyle: TextStyle(color: Color(0xFFBCAAA4)),
@@ -376,7 +501,12 @@ class _InputScreenState extends State<InputScreen>
   Widget _moodButton(Mood m) {
     final selected = _mood == m.value;
     return GestureDetector(
-      onTap: _submitting ? null : () => setState(() => _mood = m.value),
+      onTap: _submitting
+          ? null
+          : () {
+              setState(() => _mood = m.value);
+              _scheduleSaveDraft();
+            },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         width: 58,
@@ -393,13 +523,16 @@ class _InputScreenState extends State<InputScreen>
           children: [
             MoodIcon(value: m.value, size: 38),
             const SizedBox(height: 4),
-            Text(m.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 9.5,
-                    height: 1.1,
-                    color: selected ? AppColors.greenDark : const Color(0xFFA1887F),
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400)),
+            Text(
+              m.label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9.5,
+                height: 1.1,
+                color: selected ? AppColors.greenDark : const Color(0xFFA1887F),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
           ],
         ),
       ),

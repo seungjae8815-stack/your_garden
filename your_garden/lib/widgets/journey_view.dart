@@ -16,8 +16,8 @@ class JourneyList extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),
         child: Center(
-            child: Text('묻은 마음이 없어요',
-                style: TextStyle(color: AppColors.faint))),
+          child: Text('묻은 마음이 없어요', style: TextStyle(color: AppColors.faint)),
+        ),
       );
     }
     return Column(
@@ -34,24 +34,32 @@ class JourneyList extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  if (e.mood != null) ...[
-                    MoodIcon(value: e.mood!, size: 16),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(_date(e.createdAt),
+                Row(
+                  children: [
+                    if (e.mood != null) ...[
+                      MoodIcon(value: e.mood!, size: 16),
+                      const SizedBox(width: 6),
+                    ],
+                    Text(
+                      _date(e.createdAt),
                       style: const TextStyle(
-                          fontSize: 11, color: AppColors.faint)),
-                ]),
+                        fontSize: 11,
+                        color: AppColors.faint,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Text(
                   e.text.isEmpty ? '마음 날씨를 남긴 날' : e.text,
                   style: TextStyle(
-                      fontSize: 14.5,
-                      height: 1.5,
-                      fontStyle:
-                          e.text.isEmpty ? FontStyle.italic : FontStyle.normal,
-                      color: e.text.isEmpty ? AppColors.faint : AppColors.ink),
+                    fontSize: 14.5,
+                    height: 1.5,
+                    fontStyle: e.text.isEmpty
+                        ? FontStyle.italic
+                        : FontStyle.normal,
+                    color: e.text.isEmpty ? AppColors.faint : AppColors.ink,
+                  ),
                 ),
               ],
             ),

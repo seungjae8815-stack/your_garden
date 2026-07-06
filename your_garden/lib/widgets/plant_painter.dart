@@ -25,21 +25,21 @@ const double kSoilRatio = 0.2934;
 const double kMoundRatio = 0.39;
 
 String speciesLabel(String s) => switch (s) {
-      'cosmos' || 'flower' => '코스모스',
-      'tulip' => '튤립',
-      'sunflower' => '해바라기',
-      'rose' => '장미',
-      'daffodil' => '수선화',
-      'cherry' => '벚나무',
-      'maple' => '단풍나무',
-      'pine' => '소나무',
-      'ginkgo' => '은행나무',
-      'persimmon' => '감나무',
-      'succulent' => '다육이',
-      'herb' => '허브',
-      'tree' => '나무',
-      _ => '식물',
-    };
+  'cosmos' || 'flower' => '코스모스',
+  'tulip' => '튤립',
+  'sunflower' => '해바라기',
+  'rose' => '장미',
+  'daffodil' => '수선화',
+  'cherry' => '벚나무',
+  'maple' => '단풍나무',
+  'pine' => '소나무',
+  'ginkgo' => '은행나무',
+  'persimmon' => '감나무',
+  'succulent' => '다육이',
+  'herb' => '허브',
+  'tree' => '나무',
+  _ => '식물',
+};
 
 /// 일러스트 에셋이 있는 종은 그림으로, 없으면 PlantPainter로 그린다.
 /// 꽃 5종 + 나무 5종이 단계별 그림(<종>_1..5.png)을 가짐.
@@ -130,7 +130,8 @@ class TreeOnSoil extends StatelessWidget {
     final sprite = PlantSprite.hasAsset(species)
         ? PlantSprite(species: species, stage: stage, inPot: false)
         : CustomPaint(
-            painter: PlantPainter(species: species, stage: stage, inPot: false));
+            painter: PlantPainter(species: species, stage: stage, inPot: false),
+          );
     return SizedBox(
       width: (treeW > soilW ? treeW : soilW) + 4,
       height: treeH + baseSink + 6,
@@ -144,8 +145,10 @@ class TreeOnSoil extends StatelessWidget {
             child: SizedBox(width: treeW, height: treeH, child: sprite),
           ),
           // 앞: 작은 흙더미로 줄기 밑동만 살짝 가림(원본 흙더미는 그대로 보임)
-          Image.asset('assets/gardens/mound_front.png',
-              width: soilW * frontFactor),
+          Image.asset(
+            'assets/gardens/mound_front.png',
+            width: soilW * frontFactor,
+          ),
         ],
       ),
     );
@@ -154,11 +157,7 @@ class TreeOnSoil extends StatelessWidget {
 
 /// 코드로 그린 식물 (종류 × 성장단계 1~5). 나중에 에셋/Rive로 교체.
 class PlantPainter extends CustomPainter {
-  PlantPainter({
-    required this.species,
-    required this.stage,
-    this.inPot = true,
-  });
+  PlantPainter({required this.species, required this.stage, this.inPot = true});
   final String species;
   final int stage;
   final bool inPot; // 화분에 담아 그릴지 (tree는 무시)
@@ -196,8 +195,12 @@ class PlantPainter extends CustomPainter {
       canvas.drawPath(path, Paint()..color = _pot);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTRB(cx - tH - w * 0.025, potTopY - h * 0.045,
-              cx + tH + w * 0.025, potTopY + h * 0.015),
+          Rect.fromLTRB(
+            cx - tH - w * 0.025,
+            potTopY - h * 0.045,
+            cx + tH + w * 0.025,
+            potTopY + h * 0.015,
+          ),
           Radius.circular(w * 0.025),
         ),
         Paint()..color = _potR,
@@ -205,7 +208,10 @@ class PlantPainter extends CustomPainter {
       soilY = potTopY - h * 0.012;
       canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(cx, soilY), width: tH * 1.7, height: h * 0.03),
+          center: Offset(cx, soilY),
+          width: tH * 1.7,
+          height: h * 0.03,
+        ),
         Paint()..color = _soil,
       );
     } else {
@@ -224,11 +230,14 @@ class PlantPainter extends CustomPainter {
 
   void _flower(Canvas c, double cx, double soilY, double w, double h, int s) {
     final stemTop = soilY - h * (0.06 + 0.09 * s);
-    c.drawLine(Offset(cx, soilY), Offset(cx, stemTop),
-        Paint()
-          ..color = _stem
-          ..strokeWidth = w * 0.026
-          ..strokeCap = StrokeCap.round);
+    c.drawLine(
+      Offset(cx, soilY),
+      Offset(cx, stemTop),
+      Paint()
+        ..color = _stem
+        ..strokeWidth = w * 0.026
+        ..strokeCap = StrokeCap.round,
+    );
     final pairs = (s - 1).clamp(1, 3);
     for (var i = 0; i < pairs; i++) {
       final t = pairs == 1 ? 0.45 : i / (pairs - 1);
@@ -237,8 +246,12 @@ class PlantPainter extends CustomPainter {
       _leaf(c, cx, y, w * 0.17, 1, const Color(0xFF8BC34A));
     }
     if (s >= 3) {
-      _bloom(c, Offset(cx, stemTop), w * (0.06 + 0.02 * s),
-          s >= 5 ? const Color(0xFFF48FB1) : const Color(0xFFF6A5C0));
+      _bloom(
+        c,
+        Offset(cx, stemTop),
+        w * (0.06 + 0.02 * s),
+        s >= 5 ? const Color(0xFFF48FB1) : const Color(0xFFF6A5C0),
+      );
     } else {
       _leaf(c, cx, stemTop, w * 0.15, -1, const Color(0xFF9CCC65));
       _leaf(c, cx, stemTop, w * 0.15, 1, const Color(0xFF9CCC65));
@@ -261,12 +274,17 @@ class PlantPainter extends CustomPainter {
         c.translate(cx + cos(ang) * len * 0.5, cy + sin(ang) * len * 0.5 * 0.7);
         c.rotate(ang + pi / 2);
         c.drawOval(
-            Rect.fromCenter(center: Offset.zero, width: len * 0.5, height: len),
-            Paint()..color = color);
+          Rect.fromCenter(center: Offset.zero, width: len * 0.5, height: len),
+          Paint()..color = color,
+        );
         c.restore();
       }
     }
-    c.drawCircle(Offset(cx, cy), base * 0.12, Paint()..color = const Color(0xFFC5E1A5));
+    c.drawCircle(
+      Offset(cx, cy),
+      base * 0.12,
+      Paint()..color = const Color(0xFFC5E1A5),
+    );
   }
 
   void _herb(Canvas c, double cx, double soilY, double w, double h, int s) {
@@ -276,12 +294,19 @@ class PlantPainter extends CustomPainter {
       final spread = (i ~/ 2 + 1) * 0.18;
       final top = soilY - h * (0.10 + 0.07 * s) * (1 - spread * 0.3);
       final tipX = cx + dir * w * spread;
-      c.drawLine(Offset(cx, soilY), Offset(tipX, top),
-          Paint()
-            ..color = _stem
-            ..strokeWidth = w * 0.018
-            ..strokeCap = StrokeCap.round);
-      c.drawCircle(Offset(tipX, top), w * 0.05, Paint()..color = const Color(0xFF8BC34A));
+      c.drawLine(
+        Offset(cx, soilY),
+        Offset(tipX, top),
+        Paint()
+          ..color = _stem
+          ..strokeWidth = w * 0.018
+          ..strokeCap = StrokeCap.round,
+      );
+      c.drawCircle(
+        Offset(tipX, top),
+        w * 0.05,
+        Paint()..color = const Color(0xFF8BC34A),
+      );
     }
   }
 
@@ -292,17 +317,28 @@ class PlantPainter extends CustomPainter {
     final canopyR = w * 0.42 * scale;
     c.drawRect(
       Rect.fromCenter(
-          center: Offset(cx, baseY - trunkH * 0.4),
-          width: w * 0.07 * (0.6 + scale),
-          height: trunkH * 0.8),
+        center: Offset(cx, baseY - trunkH * 0.4),
+        width: w * 0.07 * (0.6 + scale),
+        height: trunkH * 0.8,
+      ),
       Paint()..color = _trunk,
     );
     final topY = baseY - trunkH;
-    c.drawCircle(Offset(cx, topY), canopyR, Paint()..color = const Color(0xFF66993F));
-    c.drawCircle(Offset(cx - canopyR * 0.4, topY + canopyR * 0.2), canopyR * 0.7,
-        Paint()..color = const Color(0xFF78AB4F));
-    c.drawCircle(Offset(cx + canopyR * 0.45, topY + canopyR * 0.15), canopyR * 0.6,
-        Paint()..color = const Color(0xFF85B85C));
+    c.drawCircle(
+      Offset(cx, topY),
+      canopyR,
+      Paint()..color = const Color(0xFF66993F),
+    );
+    c.drawCircle(
+      Offset(cx - canopyR * 0.4, topY + canopyR * 0.2),
+      canopyR * 0.7,
+      Paint()..color = const Color(0xFF78AB4F),
+    );
+    c.drawCircle(
+      Offset(cx + canopyR * 0.45, topY + canopyR * 0.15),
+      canopyR * 0.6,
+      Paint()..color = const Color(0xFF85B85C),
+    );
   }
 
   void _leaf(Canvas c, double x, double y, double len, int dir, Color color) {
@@ -310,9 +346,13 @@ class PlantPainter extends CustomPainter {
     c.translate(x, y);
     c.rotate(dir * 0.6);
     c.drawOval(
-        Rect.fromCenter(
-            center: Offset(dir * len * 0.4, 0), width: len, height: len * 0.5),
-        Paint()..color = color);
+      Rect.fromCenter(
+        center: Offset(dir * len * 0.4, 0),
+        width: len,
+        height: len * 0.5,
+      ),
+      Paint()..color = color,
+    );
     c.restore();
   }
 
