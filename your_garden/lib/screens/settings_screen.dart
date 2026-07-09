@@ -17,7 +17,7 @@ import '../theme.dart';
 import '../widgets/plant_painter.dart';
 import 'lock_screen.dart';
 
-const _privacyUrl = 'https://seungjae8815-stack.github.io/yourgarden-policy/';
+const _privacyUrl = 'https://dkc260701.github.io/yourgarden-policy/';
 
 /// v2 소셜(공개 정원)이 열리기 전까지 공개 기능을 잠근다.
 /// true로 바꾸면 '정원 공개' 토글이 다시 나타난다.

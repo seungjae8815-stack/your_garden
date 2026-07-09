@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>너의 정원 : 마음을 심는 감정 일기 — 계정·데이터 삭제 안내</title>
+  <style>
+    :root { --bg:#FFF8E1; --ink:#5D4037; --sub:#8D6E63; --accent:#7CB342; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      line-height:1.75; }
+    .wrap { max-width:720px; margin:0 auto; padding:40px 22px 80px; }
+    h1 { font-size:24px; letter-spacing:0.5px; margin:0 0 6px; }
+    h2 { font-size:18px; margin:34px 0 10px; color:var(--ink); border-bottom:2px solid #E0D7C5; padding-bottom:6px; }
+    .meta { color:var(--sub); font-size:13px; margin-bottom:8px; }
+    p, li { font-size:15px; color:#4E342E; }
+    ul { padding-left:20px; }
+    a { color:var(--accent); }
+    .card { background:#FFFDF5; border:1px solid #E0D7C5; border-radius:12px; padding:16px 18px; margin:14px 0; }
+    .card table { width:100%; border-collapse:collapse; }
+    .card th, .card td { text-align:left; vertical-align:top; padding:5px 8px; font-size:14px; }
+    .card th { color:var(--sub); white-space:nowrap; width:34%; font-weight:600; }
+    .steps { counter-reset:step; list-style:none; padding-left:0; }
+    .steps li { position:relative; padding:6px 0 6px 34px; }
+    .steps li::before { counter-increment:step; content:counter(step);
+      position:absolute; left:0; top:6px; width:22px; height:22px; border-radius:50%;
+      background:var(--accent); color:#fff; font-size:13px; font-weight:700;
+      display:flex; align-items:center; justify-content:center; }
+    footer { margin-top:50px; color:var(--sub); font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>계정·데이터 삭제 안내</h1>
+    <p class="meta">개정일: 2026년 7월 9일</p>
+
+    <div class="card">
+      <table>
+        <tr><th>앱 이름</th><td>너의 정원 : 마음을 심는 감정 일기</td></tr>
+        <tr><th>개발자</th><td>디케이컴퍼니</td></tr>
+        <tr><th>패키지명</th><td>com.yourgarden.app</td></tr>
+        <tr><th>문의 이메일</th><td><a href="mailto:DKC260701@gmail.com">DKC260701@gmail.com</a></td></tr>
+      </table>
+    </div>
+
+    <p>본 페이지는 <strong>너의 정원 : 마음을 심는 감정 일기</strong>(개발자: 디케이컴퍼니, 패키지명: com.yourgarden.app) 앱의 계정 및 데이터 삭제 방법을 안내합니다.</p>
+
+    <h2>방법 1. 앱에서 직접 삭제 (권장 · 즉시 처리)</h2>
+    <ul class="steps">
+      <li>앱을 실행합니다.</li>
+      <li>하단 또는 우측 상단의 <strong>설정</strong>으로 이동합니다.</li>
+      <li><strong>내 정원 데이터 삭제</strong>를 누릅니다.</li>
+      <li>안내를 확인하고 삭제를 완료합니다. 즉시 서버 데이터와 계정이 영구 삭제됩니다.</li>
+    </ul>
+
+    <h2>방법 2. 이메일로 삭제 요청</h2>
+    <p>앱을 삭제했거나 앱에 접근할 수 없는 경우 <a href="mailto:DKC260701@gmail.com">DKC260701@gmail.com</a> 으로 삭제를 요청해 주세요. 본 앱은 로그인 없이 익명으로 동작하여 개발자가 이용자를 식별할 수 있는 정보를 보관하지 않으므로, 가장 확실한 방법은 <strong>방법 1(앱 내 삭제)</strong>입니다. 이메일로 요청하시면 처리 절차를 안내해 드립니다.</p>
+
+    <h2>삭제되는 데이터 항목</h2>
+    <ul>
+      <li>익명 인증 식별자(account id) 및 인증 계정</li>
+      <li>기기 식별값(device id) 등 기기에 저장된 로컬 데이터</li>
+      <li>자동 생성 닉네임 및 정원 이름</li>
+      <li>이용자가 작성한 글(마음 기록) 전체</li>
+      <li>식물·성장·정원 데이터, 공개 여부 설정</li>
+      <li>백업 복구 코드의 해시값</li>
+      <li>(Google 백업을 연결한 경우) 연동된 Google 계정 정보</li>
+    </ul>
+
+    <h2>보관 기간</h2>
+    <p>삭제 요청 시 위 데이터는 서버에서 <strong>즉시 영구 삭제</strong>되며 별도로 보관하지 않습니다. 다만 인프라 제공사(<strong>Supabase</strong>)의 재해 복구용 <strong>자동 백업본은 최대 30일 이내</strong>에 순차적으로 파기되어 완전히 소멸합니다. 이 기간 동안 백업본은 접근·이용되지 않습니다.</p>
+
+    <p style="margin-top:28px;">전체 개인정보처리방침·이용약관은 <a href="./">여기</a>에서 확인할 수 있습니다.</p>
+
+    <footer>© 2026 디케이컴퍼니 · 너의 정원 : 마음을 심는 감정 일기.</footer>
+  </div>
+</body>
+</html>
