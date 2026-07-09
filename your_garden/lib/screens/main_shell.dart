@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/whats_new.dart';
 import '../theme.dart';
+import '../widgets/whats_new_sheet.dart';
 import 'collection_screen.dart';
 import 'garden_screen.dart';
 import 'journal_screen.dart';
@@ -25,6 +27,20 @@ class _MainShellState extends State<MainShell> {
     JournalScreen(profile: widget.profile),
     SettingsScreen(profile: widget.profile),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 업데이트 후 첫 진입이면 "새로워진 점"을 한 번 안내. (신규 설치자는 제외)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeWhatsNew());
+  }
+
+  Future<void> _maybeWhatsNew() async {
+    final entry = await WhatsNew.instance.pending();
+    if (entry == null || !mounted) return;
+    await showWhatsNewSheet(context, entry);
+    await WhatsNew.instance.markSeen(entry.version);
+  }
 
   @override
   Widget build(BuildContext context) {

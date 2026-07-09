@@ -13,8 +13,10 @@ import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import '../services/notification_service.dart';
 import '../services/secure_window.dart';
+import '../services/whats_new.dart';
 import '../theme.dart';
 import '../widgets/plant_painter.dart';
+import '../widgets/whats_new_sheet.dart';
 import 'lock_screen.dart';
 
 const _privacyUrl = 'https://dkc260701.github.io/yourgarden-policy/';
@@ -187,7 +189,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
-      setState(() => _version = info.version);
+      setState(() => _version = '${info.version} (${info.buildNumber})');
     } catch (_) {
       // 표기 실패 시 앱 이름만 노출.
     }
@@ -916,14 +918,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
           const SizedBox(height: 24),
           Center(
-            child: Text(
-              _version.isEmpty ? '너의 정원' : '너의 정원 · 버전 $_version',
-              style: const TextStyle(fontSize: 12, color: AppColors.faint),
+            child: GestureDetector(
+              onTap: _showWhatsNew,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: Text(
+                  _version.isEmpty ? '너의 정원' : '너의 정원 · 버전 $_version',
+                  style: const TextStyle(fontSize: 12, color: AppColors.faint),
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 버전을 누르면 이번 업데이트의 "새로워진 점"을 다시 보여준다.
+  Future<void> _showWhatsNew() async {
+    final entry = await WhatsNew.instance.currentEntry();
+    if (entry == null || !mounted) return;
+    await showWhatsNewSheet(context, entry);
   }
 
   Widget _card(List<Widget> children) => Container(

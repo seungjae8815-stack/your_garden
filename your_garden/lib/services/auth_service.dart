@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import 'nickname.dart';
+import 'whats_new.dart';
 
 class AuthService {
   AuthService(this._client, {FlutterSecureStorage? secureStorage})
@@ -54,6 +55,8 @@ class AuthService {
         'nickname': nickname,
         'is_public': false,
       });
+      // 신규 설치 — 현재 버전을 "이미 본" 것으로 기록해 업데이트 안내를 건너뛴다.
+      await WhatsNew.instance.markSeenCurrent();
       return AuthResult(
         uid: uid,
         nickname: nickname,
