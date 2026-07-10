@@ -6,11 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/lock_screen.dart';
 import 'screens/main_shell.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/update_required_screen.dart';
 import 'services/app_lock_service.dart';
 import 'services/auth_service.dart';
 import 'services/garden_service.dart';
 import 'services/notification_service.dart';
 import 'services/secure_window.dart';
+import 'services/update_service.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -37,8 +39,54 @@ class YourGardenApp extends StatelessWidget {
       title: '너의 정원',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const AppLockGate(child: BootGate()),
+      home: const UpdateGate(child: AppLockGate(child: BootGate())),
     );
+  }
+}
+
+/// 강제/선택 업데이트 게이트 — 앱의 최상단.
+/// 서버(app_config)를 확인해 현재 빌드가 최소지원 미만이면 [UpdateRequiredScreen]으로
+/// 덮는다. 그 외에는 child로 통과. 확인은 최대 5초, 실패·지연 시 앱을 막지 않고
+/// 통과한다(fail-open) — 오프라인에서도 앱이 열리도록.
+class UpdateGate extends StatefulWidget {
+  const UpdateGate({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<UpdateGate> createState() => _UpdateGateState();
+}
+
+class _UpdateGateState extends State<UpdateGate> {
+  UpdateStatus? _status; // null = 확인 중
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    final s = await UpdateService.instance.check().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => UpdateStatus.none,
+    );
+    if (mounted) setState(() => _status = s);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _status;
+    if (s == null) {
+      // 확인 중 — 짧은 스플래시(보통 1초 미만).
+      return const Scaffold(
+        backgroundColor: AppColors.cream,
+        body: Center(child: CircularProgressIndicator(color: AppColors.green)),
+      );
+    }
+    if (s.kind == UpdateKind.forced) {
+      return UpdateRequiredScreen(status: s);
+    }
+    return widget.child;
   }
 }
 

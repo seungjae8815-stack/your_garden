@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/update_service.dart';
 import '../services/whats_new.dart';
 import '../theme.dart';
+import '../widgets/update_nudge_sheet.dart';
 import '../widgets/whats_new_sheet.dart';
 import 'collection_screen.dart';
 import 'garden_screen.dart';
@@ -31,8 +33,13 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    // 업데이트 후 첫 진입이면 "새로워진 점"을 한 번 안내. (신규 설치자는 제외)
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeWhatsNew());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _afterEnter());
+  }
+
+  /// 메인 진입 직후: 업데이트 안내(새로워진 점) → 선택 업데이트 넛지 순서로 1회씩.
+  Future<void> _afterEnter() async {
+    await _maybeWhatsNew();
+    await _maybeUpdateNudge();
   }
 
   Future<void> _maybeWhatsNew() async {
@@ -40,6 +47,18 @@ class _MainShellState extends State<MainShell> {
     if (entry == null || !mounted) return;
     await showWhatsNewSheet(context, entry);
     await WhatsNew.instance.markSeen(entry.version);
+  }
+
+  /// 선택 업데이트가 있으면 부드럽게 권한다. (게이트에서 캐시된 결과 재사용, 빌드별 1회)
+  Future<void> _maybeUpdateNudge() async {
+    if (!mounted) return;
+    final s =
+        UpdateService.instance.cached ?? await UpdateService.instance.check();
+    if (!mounted || s.kind != UpdateKind.optional) return;
+    if (await UpdateService.instance.alreadyNudged(s.latestBuild)) return;
+    if (!mounted) return;
+    await showUpdateNudgeSheet(context, s);
+    await UpdateService.instance.markNudged(s.latestBuild);
   }
 
   @override
