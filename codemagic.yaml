@@ -1,0 +1,58 @@
+# Codemagic CI — 너의 정원 iOS (App Store / TestFlight)
+#
+# ── Codemagic 대시보드 사전 준비 ─────────────────────────────
+# 1) Teams → Integrations → App Store Connect: API 키(.p8) 등록.
+#    등록 시 정한 '이름'을 아래 integrations.app_store_connect 값과 똑같이 맞추세요.
+# 2) 환경변수 그룹 'supabase' 생성 후 아래 2개 추가(‘Secure’ 체크):
+#      SUPABASE_URL        = (Supabase 프로젝트 URL)
+#      SUPABASE_ANON_KEY   = (Supabase anon key)
+#    ※ .env 는 repo에 없으므로(gitignore) 빌드 중 이 값으로 생성함.
+# 3) 이 repo(your_garden)를 Codemagic 앱으로 연결.
+#
+# 참고: Flutter 프로젝트가 서브폴더 your_garden/ 에 있어 스크립트에서 cd 함.
+
+workflows:
+  ios-appstore:
+    name: iOS App Store (너의 정원)
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    integrations:
+      app_store_connect: codemagic   # ← Codemagic에 등록한 App Store Connect API 키 '이름'으로 바꾸세요
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.yourgarden.app
+      groups:
+        - supabase                   # SUPABASE_URL, SUPABASE_ANON_KEY 를 담은 환경변수 그룹
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Create .env (Supabase 키 주입)
+        script: |
+          cat > "$CM_BUILD_DIR/your_garden/.env" <<EOF
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          EOF
+      - name: Flutter pub get
+        script: |
+          cd "$CM_BUILD_DIR/your_garden"
+          flutter pub get
+      - name: Set up code signing (자동 프로파일)
+        script: |
+          cd "$CM_BUILD_DIR/your_garden"
+          xcode-project use-profiles
+      - name: Flutter build ipa
+        script: |
+          cd "$CM_BUILD_DIR/your_garden"
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - your_garden/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # 심사까지 자동 제출하려면 아래 주석 해제(그룹 배포 후):
+        # submit_to_app_store: false
