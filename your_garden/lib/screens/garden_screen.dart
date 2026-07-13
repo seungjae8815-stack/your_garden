@@ -13,7 +13,7 @@ import '../widgets/plant_painter.dart';
 import 'input_screen.dart';
 import 'plant_detail_screen.dart';
 import 'reflection_screen.dart';
-import 'settings_screen.dart' show showBackupCodeDialog;
+import 'settings_screen.dart' show showBackupCodeDialog, kGoogleBackupEnabled;
 import 'share_preview_screen.dart';
 
 /// (구버전) 고정 자리 — pos_x/pos_y 없는 옛 데이터의 위치 폴백용.
@@ -233,17 +233,19 @@ class _GardenScreenState extends State<GardenScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+              if (kGoogleBackupEnabled) ...[
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => _nudgeGoogle(sheetCtx),
+                  icon: const Icon(Icons.account_circle_outlined),
+                  label: const Text('Google로 지키기'),
                 ),
-                onPressed: () => _nudgeGoogle(sheetCtx),
-                icon: const Icon(Icons.account_circle_outlined),
-                label: const Text('Google로 지키기'),
-              ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
+              ],
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),

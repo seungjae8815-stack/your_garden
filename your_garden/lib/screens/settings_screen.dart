@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart'
+    show kDebugMode, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,6 +26,12 @@ const _privacyUrl = 'https://dkc260701.github.io/yourgarden-policy/';
 /// true로 바꾸면 '정원 공개' 토글이 다시 나타난다.
 /// (그때 서버측 public read 정책도 함께 복구해야 함 — 마이그레이션 0011 참고)
 const bool kSocialEnabled = false;
+
+/// iOS에선 Google 백업(서드파티 소셜 로그인)을 숨긴다.
+/// 서드파티 로그인이 있으면 Apple이 Sign in with Apple(App Store 4.8)을
+/// 의무화하기 때문. iOS에선 '복구 코드' 백업으로 대체한다.
+/// (Sign in with Apple을 추가하면 이 조건을 풀어 재활성할 수 있다.)
+final bool kGoogleBackupEnabled = defaultTargetPlatform != TargetPlatform.iOS;
 
 /// 개인정보처리방침·이용약관 페이지를 기본 브라우저로 연다.
 /// 브라우저를 열 수 없으면 주소를 클립보드에 복사하는 것으로 폴백한다.
@@ -729,7 +736,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
           const SizedBox(height: 14),
           _card([
-            // Google 계정 백업 (권장)
+            // Google 계정 백업 — iOS에선 숨김(Sign in with Apple 4.8 의무화·OAuth 회피)
+            if (kGoogleBackupEnabled) ...[
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(
@@ -762,7 +770,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _busy ? null : _recoverGoogle,
             ),
             const Divider(height: 1, color: AppColors.border),
-            // 익명 복구 코드 (Google 없이 정원 지키기)
+            ],
+            // 익명 복구 코드 (Google 없이도 정원 지키기 — iOS 기본 백업)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(

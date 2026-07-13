@@ -36,7 +36,11 @@
 - **업그레이드**: 기념 카드 공유(HarvestCardScreen), 함께한 일수, 답장 템플릿 확장·감정태그 반영
 - **버그수정**: 온보딩 '정원 공개' 토글 숨김(끄기 불가 방지), iOS 알림 초기화·권한, 만개 후 체크인→돌아보기 안내, 도감/돌아보기 이름 표시, 도감 상세 오류 재시도, 정원 로드 병렬화, 초기화 후 즉시 갱신
 - **iOS**: 번들ID·FaceID·OAuth 스킴·알림 델리게이트(Codemagic 빌드 준비)
-- **iOS build 7 (2026-07-14)**: 앱 아이콘 누락 수정 — `flutter_launcher_icons` `ios:false`→`true`+`remove_alpha_ios`(알파 제거)+`background_color_ios`. build 6은 Flutter 기본 로고가 박혀 있었음 → Codemagic 재빌드로 정원 아이콘 반영
+- **iOS build 7 (2026-07-14)**: App Store 심사 대비 사전 점검·수정
+  - 앱 아이콘 누락 수정 — `flutter_launcher_icons` `ios:false`→`true`+`remove_alpha_ios`(알파 제거)+`background_color_ios`. build 6은 Flutter 기본 로고였음
+  - **iPad 제외(iPhone 전용)** — `TARGETED_DEVICE_FAMILY "1,2"→"1"`. iPad 디자인 반려(4.0) 예방
+  - **iOS에서 Google 백업 숨김** — Supabase OAuth 노출 시 Sign in with Apple(4.8) 의무화·리다이렉트 이슈. `kGoogleBackupEnabled=!iOS`로 게이팅, iOS는 복구 코드 백업으로 대체
+  - 확인된 안전 항목: ATT 추적 선언 없음, Firebase 미사용(흰화면·iOS15 무관)
 - **서버**: 마이그레이션 0014(add_entry 만개 초과성장 방지), 0013(app_config 버전 게이트)
 
 > ℹ️ app_config는 평소 손대지 않음(Play 기본 업데이트 안내로 충분). **강제 업데이트가 필요할 때만**:
