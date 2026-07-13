@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/garden_service.dart';
 import '../theme.dart';
 import '../widgets/journey_view.dart';
+import '../widgets/load_error_view.dart';
 import '../widgets/plant_painter.dart';
 
 /// 도감 상세 — 한 식물의 만개 모습 + 마무리 한마디 + 감정의 여정 다시보기.
@@ -19,6 +20,7 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
   late final GardenService _garden = GardenService(Supabase.instance.client);
   List<EntryRecord> _entries = const [];
   bool _loading = true;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -33,10 +35,14 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
       setState(() {
         _entries = list;
         _loading = false;
+        _failed = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
     }
   }
 
@@ -45,8 +51,11 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
     final p = widget.plant;
     return Scaffold(
       appBar: AppBar(
+        // 지어준 이름(감정 챕터)이 있으면 이름으로, 종 이름은 부제처럼.
         title: Text(
-          speciesLabel(p.species),
+          (p.name != null && p.name!.trim().isNotEmpty)
+              ? '${p.name!.trim()} · ${speciesLabel(p.species)}'
+              : speciesLabel(p.species),
           style: const TextStyle(color: AppColors.ink),
         ),
       ),
@@ -54,6 +63,8 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.green),
             )
+          : _failed
+          ? LoadErrorView(onRetry: _load)
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [

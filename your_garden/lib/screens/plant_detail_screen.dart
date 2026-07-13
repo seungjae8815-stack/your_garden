@@ -162,7 +162,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               Text(
                 p.isBloomed
                     ? '활짝 다 자랐어요 🌸'
-                    : 'Stage ${p.stage} · ${_names[p.stage]}',
+                    : 'Stage ${p.stage} · ${_names[p.stage.clamp(1, 5)]}',
                 style: const TextStyle(fontSize: 16, color: AppColors.sub),
               ),
               const SizedBox(height: 10),

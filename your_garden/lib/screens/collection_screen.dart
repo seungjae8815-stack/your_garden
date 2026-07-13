@@ -154,11 +154,17 @@ class _CollectionScreenState extends State<CollectionScreen> {
                                 ),
                         ),
                       ),
+                      // 지어준 이름(감정 챕터)이 있으면 이름을, 없으면 종 이름을.
                       Text(
-                        speciesLabel(p.species),
+                        (p.name != null && p.name!.trim().isNotEmpty)
+                            ? p.name!.trim()
+                            : speciesLabel(p.species),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.faint,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.ink,
                         ),
                       ),
                       Text(

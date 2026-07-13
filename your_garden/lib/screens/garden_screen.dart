@@ -85,6 +85,23 @@ class _GardenScreenState extends State<GardenScreen> {
     return list;
   }
 
+  // 이 정원과 함께한 일수 (첫 식물을 심은 날 = 1일째). 스트릭이 아니라 애착 지표 —
+  // 쉬어도 줄지 않고, 복구한 정원도 원래 시작일을 이어간다.
+  int? get _daysTogether {
+    DateTime? earliest;
+    for (final p in [?_plant, ..._completed]) {
+      final s = p.startedAt;
+      if (s != null && (earliest == null || s.isBefore(earliest))) earliest = s;
+    }
+    if (earliest == null) return null;
+    final e = earliest.toLocal();
+    final today = DateTime.now();
+    return DateTime(today.year, today.month, today.day)
+            .difference(DateTime(e.year, e.month, e.day))
+            .inDays +
+        1;
+  }
+
   // 식물이 지면에 닿는 발(foot) 좌표(0..1). 자유 좌표 우선, 없으면 구버전 자리.
   Offset _footOf(Plant p) {
     if (p.posX != null && p.posY != null) return Offset(p.posX!, p.posY!);
@@ -135,8 +152,13 @@ class _GardenScreenState extends State<GardenScreen> {
     }
     try {
       final plant = await _garden.ensureActivePlant(widget.profile.uid);
-      final completed = await _garden.completedPlants(widget.profile.uid);
-      final checkedIn = await _garden.checkedInToday(plant.id);
+      // 나머지 둘은 서로 독립 — 병렬로 불러 왕복을 줄인다.
+      final results = await Future.wait([
+        _garden.completedPlants(widget.profile.uid),
+        _garden.checkedInToday(plant.id),
+      ]);
+      final completed = results[0] as List<Plant>;
+      final checkedIn = results[1] as bool;
       if (!mounted) return;
       setState(() {
         _plant = plant;
@@ -278,12 +300,17 @@ class _GardenScreenState extends State<GardenScreen> {
   }
 
   // 오늘의 마음 묻기 (매일 체크인) — 식물 상세를 거치지 않고 바로.
+  // 만개한 식물이면 새 마음은 새 챕터에 묻도록 먼저 돌아보기(거두기)로 안내.
   Future<void> _openCheckIn() async {
     final plant = _plant;
     if (plant == null) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => InputScreen(plant: plant)),
+      MaterialPageRoute(
+        builder: (_) => plant.isBloomed
+            ? ReflectionScreen(plant: plant)
+            : InputScreen(plant: plant),
+      ),
     );
     if (mounted) _load(silent: true);
   }
@@ -636,7 +663,9 @@ class _GardenScreenState extends State<GardenScreen> {
                 ),
               ),
               Text(
-                widget.profile.nickname,
+                _daysTogether != null
+                    ? '함께한 지 $_daysTogether일째'
+                    : widget.profile.nickname,
                 style: TextStyle(
                   fontSize: 12,
                   color: _night ? Colors.white70 : AppColors.sub,

@@ -169,10 +169,29 @@ class GardenService {
     List<String> emotionTags = const [],
   }) async {
     // 답장 두 후보(공감 + 양분). ai_empathy는 추후 AI용으로 비워둠.
+    // 감정 태그를 답장 결에 반영해 반복을 줄인다.
     final replyGrew = plant.stage < 5
-        ? plantReply(mood: mood, grew: true, stage: plant.stage + 1)
-        : plantReply(mood: mood, grew: false, stage: plant.stage);
-    final replyStay = plantReply(mood: mood, grew: false, stage: plant.stage);
+        ? plantReply(
+            mood: mood,
+            grew: true,
+            stage: plant.stage + 1,
+            topicTags: topicTags,
+            emotionTags: emotionTags,
+          )
+        : plantReply(
+            mood: mood,
+            grew: false,
+            stage: plant.stage,
+            topicTags: topicTags,
+            emotionTags: emotionTags,
+          );
+    final replyStay = plantReply(
+      mood: mood,
+      grew: false,
+      stage: plant.stage,
+      topicTags: topicTags,
+      emotionTags: emotionTags,
+    );
 
     try {
       final res =

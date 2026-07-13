@@ -37,7 +37,15 @@ class NotificationService {
       tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
     }
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await _plugin.initialize(const InitializationSettings(android: android));
+    // iOS: 권한은 enable()에서 따로 요청 — 초기화 시점에 팝업이 뜨지 않게.
+    const darwin = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    await _plugin.initialize(
+      const InitializationSettings(android: android, iOS: darwin),
+    );
     _ready = true;
   }
 
@@ -52,13 +60,29 @@ class NotificationService {
   /// 권한 요청 + 예약. 성공하면 true.
   Future<bool> enable(int h, int m) async {
     await _ensureInit();
-    final granted =
-        await _plugin
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >()
-            ?.requestNotificationsPermission() ??
-        true;
+    // 플랫폼별 알림 권한 요청 (Android 13+ / iOS).
+    final androidImpl = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    final iosImpl = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
+    final bool granted;
+    if (androidImpl != null) {
+      granted = await androidImpl.requestNotificationsPermission() ?? true;
+    } else if (iosImpl != null) {
+      granted =
+          await iosImpl.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          true;
+    } else {
+      granted = true;
+    }
     if (granted != true) return false;
     await _store.write(key: _kEnabled, value: 'true');
     await _store.write(key: _kHour, value: '$h');
@@ -95,6 +119,7 @@ class NotificationService {
           importance: Importance.defaultImportance,
           priority: Priority.defaultPriority,
         ),
+        iOS: const DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:

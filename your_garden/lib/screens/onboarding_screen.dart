@@ -7,7 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/garden_service.dart';
 import 'first_checkin_screen.dart';
-import 'settings_screen.dart' show promptRecoveryCode, openPrivacyPolicy;
+import 'settings_screen.dart'
+    show promptRecoveryCode, openPrivacyPolicy, kSocialEnabled;
 
 /// 첫 진입 1회. 컨셉 → 메타포 → 정원·첫 식물 이름 짓기 + 약관 동의.
 /// 끝나면 곧바로 손잡은 첫 체크인(FirstCheckInScreen)으로 이어진다.
@@ -417,9 +418,10 @@ class _NamingPage extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               const Text(
-                '• 로그인 없이 익명으로 이용해요. 이메일·이름을 받지 않아요.\n'
+                '• 로그인 없이 익명으로 시작해요. 이름·전화번호를 받지 않아요.\n'
+                '• 이메일은 받지 않지만, 원할 때 Google 백업을 직접 연결하면 그 계정의 이메일이 백업 용도로만 쓰여요.\n'
                 '• 기기를 구분하기 위한 임의의 기기 식별값(device ID)을 저장해요.\n'
-                '• 당신이 적은 글은 당신의 정원에 저장되며, 비공개일 땐 다른 사람에게 보이지 않아요.\n'
+                '• 당신이 적은 글은 당신의 정원에 저장되며, 다른 사람에게 보이지 않아요.\n'
                 '• 이 앱은 의료·상담 서비스가 아니에요. 위급할 땐 안내되는 도움 전화로 연결해 주세요.',
                 style: TextStyle(
                   fontSize: 14,
@@ -526,40 +528,44 @@ class _NamingPage extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // 공개 여부
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFDF5),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE0D7C5)),
-            ),
-            child: SwitchListTile(
-              value: isPublic,
-              onChanged: onPublicChanged,
-              activeThumbColor: const Color(0xFF7CB342),
-              title: const Text(
-                '정원 공개하기',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF5D4037),
+          // 공개 여부 — v2 소셜이 열릴 때까지 숨김 (설정의 토글과 함께 잠금).
+          // 서버도 public read 정책이 닫혀 있어(마이그레이션 0011) 지금 켜두면
+          // 끌 방법이 없는 상태가 되므로, 소셜 오픈 전엔 노출하지 않는다.
+          if (kSocialEnabled) ...[
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFDF5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE0D7C5)),
+              ),
+              child: SwitchListTile(
+                value: isPublic,
+                onChanged: onPublicChanged,
+                activeThumbColor: const Color(0xFF7CB342),
+                title: const Text(
+                  '정원 공개하기',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                subtitle: const Text(
+                  '기본은 나만의 정원이에요. 나중에 다른 정원과 마음을 나누는 기능이 열릴 때 참여할지 미리 정해둘 수 있어요. (설정에서 언제든 변경)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Color(0xFFA1887F),
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
                 ),
               ),
-              subtitle: const Text(
-                '기본은 나만의 정원이에요. 나중에 다른 정원과 마음을 나누는 기능이 열릴 때 참여할지 미리 정해둘 수 있어요. (설정에서 언제든 변경)',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: Color(0xFFA1887F),
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 4,
-              ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
 
           // 약관 동의
           Row(

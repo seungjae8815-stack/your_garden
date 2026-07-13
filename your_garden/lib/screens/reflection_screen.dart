@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../widgets/journey_view.dart';
 import '../widgets/load_error_view.dart';
 import '../widgets/plant_painter.dart';
+import 'harvest_card_screen.dart';
 
 /// 만개한 식물을 거두기 전 "돌아보기 의식".
 /// 이 꽃을 키우며 묻은 마음들을 모아 보여주고, 지금 그 마음이 어떤지 확인한 뒤
@@ -71,7 +72,17 @@ class _ReflectionScreenState extends State<ReflectionScreen> {
       await _garden.harvest(widget.plant.id, reflection: reflection);
       markGardenDirty();
       if (!mounted) return;
-      Navigator.pop(context, true);
+      // 거둔 순간(감정 정점) — 이 챕터를 한 장의 기념 카드로 남기고 공유하도록.
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HarvestCardScreen(
+            plant: widget.plant,
+            entries: _entries,
+            reflection: reflection,
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _harvesting = false);
@@ -98,8 +109,11 @@ class _ReflectionScreenState extends State<ReflectionScreen> {
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
     return Scaffold(
       appBar: AppBar(
+        // 이 챕터에 지어준 이름이 있으면 그 이름으로 돌아본다.
         title: Text(
-          '${speciesLabel(p.species)} 돌아보기',
+          (p.name != null && p.name!.trim().isNotEmpty)
+              ? "'${p.name!.trim()}' 돌아보기"
+              : '${speciesLabel(p.species)} 돌아보기',
           style: const TextStyle(color: AppColors.ink),
         ),
       ),

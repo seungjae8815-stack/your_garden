@@ -624,6 +624,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // 초기화 후에도 테스트 모드 토글 상태는 그대로 유지 (재토글 불필요).
       GardenService.testFastGrowth = _testFast;
       await AuthService(Supabase.instance.client).setTestFast(_testFast);
+      markGardenDirty(); // 정원·도감·달력 즉시 갱신 (재시작 전에도 빈 상태 반영)
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(
