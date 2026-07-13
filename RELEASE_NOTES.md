@@ -4,9 +4,9 @@
 
 1. **앱 내 "새로워진 점"** → `your_garden/lib/services/whats_new.dart` 의 `notes` 맵에 새 버전 키 추가
 2. **pubspec 버전** → `your_garden/pubspec.yaml` 의 `version: X.Y.Z+build` 상향
-3. **서버 버전 게이트** → Supabase `app_config` UPDATE (`latest_build`, 강제면 `min_supported_build`도)
-   - 선택 권유: `update app_config set latest_build = <build>, latest_version = '<X.Y.Z>', updated_at = now() where id = 1;`
-   - 강제: 위에 더해 `min_supported_build = <build>`, 필요 시 `update_message = '...'`
+3. **(선택) 서버 버전 게이트** → **평소엔 안 건드려도 됨.** Play 스토어 기본 업데이트 안내로 충분하고,
+   `latest_build`를 안 올려도 앱은 정상 동작한다. **강제 업데이트가 필요할 때만** (치명 버그 등) 실행:
+   - `update app_config set min_supported_build = <build>, latest_build = <build>, latest_version = '<X.Y.Z>', update_message = '...', updated_at = now() where id = 1;`
 4. **Play Console** → 프로덕션 새 버전 → **"출시 노트"** 칸에 아래 `<ko-KR>` 블록 그대로 붙여넣기 (언어당 최대 500자)
 
 ---
@@ -38,8 +38,8 @@
 - **iOS**: 번들ID·FaceID·OAuth 스킴·알림 델리게이트(Codemagic 빌드 준비)
 - **서버**: 마이그레이션 0014(add_entry 만개 초과성장 방지), 0013(app_config 버전 게이트)
 
-> ⚠️ 릴리스 시: Supabase `app_config`의 `latest_build`를 **6**으로 UPDATE.
-> `update app_config set latest_build = 6, latest_version = '1.0.3', updated_at = now() where id = 1;`
+> ℹ️ app_config는 평소 손대지 않음(Play 기본 업데이트 안내로 충분). **강제 업데이트가 필요할 때만**:
+> `update app_config set min_supported_build = 6, latest_build = 6, latest_version = '1.0.3', update_message = '...', updated_at = now() where id = 1;`
 
 ---
 
