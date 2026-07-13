@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+6
+version: 1.0.3+7
 
 environment:
   sdk: ^3.11.5
@@ -112,7 +112,9 @@ flutter:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
+  remove_alpha_ios: true            # iOS 아이콘은 투명(알파) 금지 → 제거
+  background_color_ios: "#FFF8E1"   # 투명 영역을 크림색으로 채움(Android 배경과 동일)
   image_path: "assets/icon/icon.png"
   adaptive_icon_background: "#FFF8E1"
   adaptive_icon_foreground: "assets/icon/icon_fg.png"

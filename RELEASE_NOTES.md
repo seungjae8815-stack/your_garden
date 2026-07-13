@@ -36,6 +36,7 @@
 - **업그레이드**: 기념 카드 공유(HarvestCardScreen), 함께한 일수, 답장 템플릿 확장·감정태그 반영
 - **버그수정**: 온보딩 '정원 공개' 토글 숨김(끄기 불가 방지), iOS 알림 초기화·권한, 만개 후 체크인→돌아보기 안내, 도감/돌아보기 이름 표시, 도감 상세 오류 재시도, 정원 로드 병렬화, 초기화 후 즉시 갱신
 - **iOS**: 번들ID·FaceID·OAuth 스킴·알림 델리게이트(Codemagic 빌드 준비)
+- **iOS build 7 (2026-07-14)**: 앱 아이콘 누락 수정 — `flutter_launcher_icons` `ios:false`→`true`+`remove_alpha_ios`(알파 제거)+`background_color_ios`. build 6은 Flutter 기본 로고가 박혀 있었음 → Codemagic 재빌드로 정원 아이콘 반영
 - **서버**: 마이그레이션 0014(add_entry 만개 초과성장 방지), 0013(app_config 버전 게이트)
 
 > ℹ️ app_config는 평소 손대지 않음(Play 기본 업데이트 안내로 충분). **강제 업데이트가 필요할 때만**:
