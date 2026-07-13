@@ -1,8 +1,8 @@
 # Codemagic CI — 너의 정원 iOS (App Store / TestFlight)
 #
 # ── Codemagic 대시보드 사전 준비 ─────────────────────────────
-# 1) Teams → Integrations → App Store Connect: API 키(.p8) 등록.
-#    등록 시 정한 '이름'을 아래 integrations.app_store_connect 값과 똑같이 맞추세요.
+# 1) Settings → Integrations → Developer Portal: App Store Connect API 키(.p8) 등록.
+#    등록 시 정한 '이름'(codemagic)을 아래 integrations.app_store_connect 값과 똑같이 맞추세요.
 # 2) 환경변수 그룹 'supabase' 생성 후 아래 2개 추가(‘Secure’ 체크):
 #      SUPABASE_URL        = (Supabase 프로젝트 URL)
 #      SUPABASE_ANON_KEY   = (Supabase anon key)
@@ -17,11 +17,8 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 90
     integrations:
-      app_store_connect: codemagic   # ← Codemagic에 등록한 App Store Connect API 키 '이름'으로 바꾸세요
+      app_store_connect: codemagic   # Codemagic Developer Portal에 등록한 App Store Connect API 키 '이름' (소문자 codemagic)
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.yourgarden.app
       groups:
         - supabase                   # SUPABASE_URL, SUPABASE_ANON_KEY 를 담은 환경변수 그룹
       flutter: stable
@@ -38,8 +35,15 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR/your_garden"
           flutter pub get
-      - name: Set up code signing (자동 프로파일)
+      - name: Set up code signing (프로파일 없으면 자동 생성)
         script: |
+          # 인증서·프로파일을 App Store Connect에서 가져오되, 없으면 --create 로 생성.
+          # (자동 ios_signing 블록은 "찾기만" 하고 생성을 안 해 첫 빌드에서 실패했음)
+          keychain initialize
+          app-store-connect fetch-signing-files "com.yourgarden.app" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
           cd "$CM_BUILD_DIR/your_garden"
           xcode-project use-profiles
       - name: Flutter build ipa
